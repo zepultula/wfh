@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WFH Daily Report — มทร.ล้านนา ตาก</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
+    <style>
+      body { align-items: center; justify-content: center; }
+      .land-wrap { width: 100%; max-width: 380px; padding: 2rem 1rem; }
+      .land-logo { width: 56px; height: 56px; background: #E6F1FB; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 26px; }
+      .land-title { font-size: 20px; font-weight: 600; text-align: center; }
+      .land-sub { font-size: 13px; color: var(--color-text-secondary); text-align: center; margin-top: 4px; margin-bottom: 2rem; }
+      .land-btn { display: block; padding: 18px 20px; border-radius: var(--border-radius-lg); text-decoration: none; text-align: center; margin-bottom: 12px; transition: all 0.2s; }
+      .land-btn:hover { transform: translateY(-2px); }
+      .land-btn-title { font-size: 15px; font-weight: 600; }
+      .land-btn-sub { font-size: 11px; margin-top: 3px; opacity: 0.8; }
+      .land-btn-emp { background: linear-gradient(135deg, #1059A3 0%, #0C447C 100%); color: white; box-shadow: 0 4px 12px rgba(12,68,124,0.2); }
+      .land-btn-sup { background: var(--color-background-primary); color: var(--color-text-primary); border: 1px solid var(--color-border-secondary); box-shadow: var(--shadow-sm); }
+      .land-btn-sup .land-btn-sub { color: var(--color-text-secondary); opacity: 1; }
+    </style>
+</head>
+<body>
+
+<div class="land-wrap">
+  <div class="land-logo">📋</div>
+  <div class="land-title">WFH Daily Report</div>
+  <div class="land-sub">ระบบรายงานการทำงานประจำวัน · มทร.ล้านนา ตาก</div>
+
+  <a href="/static/employee.html" class="land-btn land-btn-emp">
+    <div class="land-btn-title">👤 หน้าพนักงาน</div>
+    <div class="land-btn-sub">บันทึกรายงานการทำงานประจำวัน</div>
+  </a>
+
+  <a href="/static/admin.html" class="land-btn land-btn-sup">
+    <div class="land-btn-title">📊 หน้าแอดมิน / หัวหน้างาน</div>
+    <div class="land-btn-sub" style="color:var(--color-text-secondary)">ตรวจสอบและ Dashboard รายงาน</div>
+  </a>
+</div>
+
+<script src="/static/js/header.js?v=1.3.0"></script>
+<script src="/static/js/footer.js?v=1.3.0"></script>
+</body>
+</html>

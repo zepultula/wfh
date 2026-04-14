@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard แอดมิน — WFH Daily Report</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
+</head>
+<body>
+
+<div style="padding:3rem 0;width:80%">
+
+<div class="screen on" id="screen-sup">
+  <div class="nb">
+    <div class="nb-brand">
+      <div class="nb-dot" style="background:#1D9E75"></div>
+      <div>
+        <div class="nb-title">Dashboard ตรวจสอบรายงาน</div>
+        <div class="nb-sub">หัวหน้างาน — มทร.ล้านนา ตาก</div>
+      </div>
+    </div>
+    <div class="nb-user">
+      <div class="av av-blue">สว</div>
+      <div>
+        <div class="nb-name">สมวิทย์ หัวหน้างาน</div>
+        <div class="nb-role">หัวหน้างาน / ผู้ดูแลระบบ</div>
+      </div>
+      <a href="/static/employee.html" class="btn-out">← พนักงาน</a>
+    </div>
+  </div>
+
+  <!-- dashboard list view -->
+  <div id="sup-list">
+    <div class="pg">
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:16px;font-weight:500">รายงานประจำวัน</div>
+          <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px" id="s-ts">—</div>
+        </div>
+        <input type="date" id="s-date-filter" style="font-size:12px;padding:5px 8px;width:auto;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);color:var(--color-text-primary);outline:none" />
+      </div>
+
+      <div class="stat-grid">
+        <div class="stat"><div class="sn" id="stat-total">—</div><div class="sl">พนักงานทั้งหมด</div></div>
+        <div class="stat"><div class="sn sg" id="stat-sent">—</div><div class="sl">ส่งแล้ว</div></div>
+        <div class="stat"><div class="sn sa" id="stat-unsent">—</div><div class="sl">ยังไม่ส่ง</div></div>
+        <div class="stat"><div class="sn sr" id="stat-prob">—</div><div class="sl">มีปัญหา</div></div>
+      </div>
+
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+          <div class="sec-lbl" style="margin-bottom:0">รายการพนักงาน</div>
+          <div class="frow" style="margin-bottom:0" id="s-filters">
+            <button class="fb on" data-f="all">ทั้งหมด</button>
+            <button class="fb" data-f="sent">ส่งแล้ว</button>
+            <button class="fb" data-f="unsent">ยังไม่ส่ง</button>
+            <button class="fb" data-f="wfh">WFH</button>
+            <button class="fb" data-f="prob">มีปัญหา</button>
+          </div>
+        </div>
+
+        <div id="s-rows">
+          <div style="padding:1rem;text-align:center;color:var(--color-text-secondary)">กำลังโหลด...</div>
+        </div>
+      </div>
+
+      <!-- problems summary -->
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div class="sec-lbl">ปัญหาที่ต้องติดตาม</div>
+        <div id="s-probs-list" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- detail view -->
+  <div id="sup-detail" style="display:none">
+    <div style="padding:1.25rem">
+      <button class="back-btn" onclick="hideDetail()">← กลับ Dashboard</button>
+
+      <div id="sup-detail-content"></div>
+
+      <div class="card">
+        <div class="sec-lbl">การสื่อสาร — หัวหน้างาน / พนักงาน</div>
+        <div class="cthread" id="s-thread"></div>
+        <div class="compose">
+          <div class="compose-hd">
+            <div class="av av-blue" style="width:20px;height:20px;font-size:9px">สว</div>
+            <span>สมวิทย์ หัวหน้างาน · คอมเมนต์ถึงพนักงาน</span>
+          </div>
+          <textarea id="s-msg" placeholder="พิมพ์คอมเมนต์หรือข้อเสนอแนะ..."></textarea>
+          <div class="compose-ft">
+            <div class="tag-row" id="s-tags">
+              <button class="tb" onclick="stag(this)">รับทราบ</button>
+              <button class="tb" onclick="stag(this)">ต้องแก้ไข</button>
+              <button class="tb" onclick="stag(this)">ดีมาก</button>
+              <button class="tb" onclick="stag(this)">ติดตามด่วน</button>
+            </div>
+            <button class="btn-send" onclick="sendCmt()">ส่ง</button>
+          </div>
+        </div>
+        <div class="sent-ok" id="s-ok">✓ ส่งคอมเมนต์แล้ว — พนักงานจะได้รับการแจ้งเตือน</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Description Modal (read-only) -->
+<div class="modal-ov" id="desc-modal">
+  <div class="modal-bx">
+    <div class="modal-hd">
+      <div class="modal-ttl">🔍 รายละเอียดงาน</div>
+      <button class="modal-cls" onclick="closeDescModal()">&times;</button>
+    </div>
+    <div class="modal-bd">
+      <div class="fl" style="margin-bottom:8px">รายละเอียดที่พนักงานระบุไว้</div>
+      <textarea id="task-desc-input" placeholder="(ไม่มีรายละเอียด)" readonly></textarea>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" onclick="closeDescModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/sup.js?v=1.2.1"></script>
+<script src="/static/js/header.js?v=1.3.0"></script>
+<script src="/static/js/footer.js?v=1.3.0"></script>
+</body>
+</html>

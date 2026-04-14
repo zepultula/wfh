@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>บันทึกการทำงาน — WFH Daily Report</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
+</head>
+<body>
+
+<div style="padding:3rem 0;width:80%">
+
+<div class="screen on" id="screen-emp">
+  <div class="nb">
+    <div class="nb-brand">
+      <div class="nb-dot"></div>
+      <div>
+        <div class="nb-title">รายงานการทำงานประจำวัน</div>
+        <div class="nb-sub">มทร.ล้านนา ตาก</div>
+      </div>
+    </div>
+    <div class="nb-user">
+      <div class="av av-teal" id="nb-av">—</div>
+      <div>
+        <div class="nb-name" id="nb-name">กำลังโหลด...</div>
+        <div class="nb-role" id="nb-role">—</div>
+      </div>
+      <a href="/static/admin.html" class="btn-out">แอดมิน →</a>
+    </div>
+  </div>
+
+  <div class="pg">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem">
+      <div>
+        <div style="font-size:16px;font-weight:500">รายงานการทำงานประจำวัน</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px" id="e-ts">กำลังโหลด...</div>
+      </div>
+    </div>
+
+    <!-- auto block -->
+    <div class="auto-blk">
+      <div class="auto-hd">
+        <div class="sec-lbl">ข้อมูลอัตโนมัติจากระบบ</div>
+        <div class="live"><span class="pulse"></span>เรียลไทม์</div>
+      </div>
+      <div class="auto-grid">
+        <div><div class="al">ชื่อ-นามสกุล</div><div class="av2" id="info-name">—</div></div>
+        <div><div class="al">ตำแหน่ง</div><div class="av2" style="font-size:12px" id="info-role">—</div></div>
+        <div><div class="al">หน่วยงาน</div><div class="av2" style="font-size:12px" id="info-dept">—</div></div>
+        <div><div class="al">วันที่ / เวลา</div><div class="av2" style="font-size:12px" id="e-ts2">—</div></div>
+      </div>
+      <div class="lock">🔒 ข้อมูลส่วนนี้บันทึกโดยระบบอัตโนมัติ ไม่สามารถแก้ไขได้</div>
+    </div>
+
+    <!-- work mode -->
+    <div class="card">
+      <div class="sec-lbl">รูปแบบการทำงานวันนี้</div>
+      <div class="mode-row">
+        <button class="mode-opt on">Work from Home</button>
+        <button class="mode-opt">On-site</button>
+        <button class="mode-opt">Hybrid</button>
+      </div>
+    </div>
+
+    <!-- tasks -->
+    <div class="card">
+      <div class="sec-lbl">งานที่ดำเนินการวันนี้</div>
+      <div id="e-tasks">
+        <!-- Tasks will be rendered by JS -->
+      </div>
+      <button class="btn-add" id="e-add">+ เพิ่มงาน</button>
+      <div class="divid"></div>
+      <div class="fl" style="margin-bottom:6px">ภาพรวมความคืบหน้าวันนี้</div>
+      <div class="prog-row">
+        <input type="range" min="0" max="100" step="1" value="0" id="e-prog" oninput="ep(this.value)">
+        <span class="prog-val" id="e-pv">0%</span>
+      </div>
+      <div class="pbar"><div class="pfill" id="e-pb" style="width:0%"></div></div>
+    </div>
+
+    <!-- notes -->
+    <div class="card">
+      <div class="sec-lbl">สรุปและแผนงาน</div>
+      <div class="field-g">
+        <div class="fl">ปัญหาหรืออุปสรรคที่พบ</div>
+        <textarea id="e-problem" placeholder="ระบุปัญหา (หากไม่มีให้ระบุ '-')">-</textarea>
+      </div>
+      <div class="field-g">
+        <div class="fl">แผนงานวันพรุ่งนี้</div>
+        <textarea id="e-plan" placeholder="ระบุงานที่วางแผนจะทำ..."></textarea>
+      </div>
+    </div>
+
+    <!-- communications -->
+    <div class="card">
+      <div class="sec-lbl">การสื่อสารกับหัวหน้างาน / ข้อเสนอแนะ</div>
+      <div class="cthread" id="e-thread" style="margin-top:10px">
+        <div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ไม่มีการสื่อสาร</div>
+      </div>
+      <div class="compose" style="margin-top:12px">
+        <div class="compose-hd">
+          <div class="av av-teal" style="width:20px;height:20px;font-size:9px" id="e-cmt-av">—</div>
+          <span id="e-cmt-name">กำลังโหลด...</span>
+        </div>
+        <textarea id="e-msg" placeholder="พิมพ์ข้อความตอบกลับหรือสอบถามได้ที่นี่..."></textarea>
+        <div class="compose-ft">
+          <div></div>
+          <button class="btn-send" onclick="sendCmt()">ส่ง</button>
+        </div>
+        <div class="sent-ok" id="e-ok">✓ ส่งข้อความถึงหัวหน้างานแล้ว</div>
+      </div>
+    </div>
+
+    <button class="btn-submit" id="btn-submit">ส่งรายงาน</button>
+  </div>
+</div>
+
+</div>
+
+<!-- Description Modal -->
+<div class="modal-ov" id="desc-modal">
+  <div class="modal-bx">
+    <div class="modal-hd">
+      <div class="modal-ttl">📝 คำอธิบายงาน</div>
+      <button class="modal-cls" onclick="closeDescModal()">&times;</button>
+    </div>
+    <div class="modal-bd">
+      <div class="fl" style="margin-bottom:8px">รายละเอียดหรือข้อมูลเพิ่มเติมสำหรับงานนี้</div>
+      <textarea id="task-desc-input" placeholder="พิมพ์รายละเอียดงานที่นี่..."></textarea>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" onclick="closeDescModal()">ยกเลิก</button>
+      <button class="btn-save" onclick="saveTaskDesc()">ตกลง</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/emp.js?v=1.2.1"></script>
+<script src="/static/js/header.js?v=1.3.0"></script>
+<script src="/static/js/footer.js?v=1.3.0"></script>
+</body>
+</html>
