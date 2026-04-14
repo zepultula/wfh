@@ -76,6 +76,7 @@ def import_data():
     # Write to Firestore
     eval_count = 0
     for target_id, eval_data in evaluations_dict.items():
+        eval_data['evaluator_ids'] = [ev['evaluator_id'] for ev in eval_data['evaluators']]
         evaluations_ref.document(target_id).set(eval_data)
         eval_count += 1
         

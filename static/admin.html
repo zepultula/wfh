@@ -27,6 +27,7 @@
         <div class="nb-role" id="nb-role">หัวหน้างาน / ผู้ดูแลระบบ</div>
       </div>
       <a href="/static/employee.html" class="btn-out">← พนักงาน</a>
+      <button class="btn-out" id="btn-users-mgmt" onclick="showUsersScreen()" style="display:none;background:#EEF3FB;color:#1A5CBF;border-color:#B8CFF0">⚙ จัดการผู้ใช้</button>
       <button class="btn-out" onclick="doLogout()" style="cursor:pointer;background:#ffeded;color:#e74c3c;border:1px solid #ffd0d0">ออกจากระบบ</button>
     </div>
   </div>
@@ -80,6 +81,26 @@
     </div>
   </div>
 
+  <!-- user management view -->
+  <div id="sup-users" style="display:none">
+    <div style="padding:1.25rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px">
+        <button class="back-btn" onclick="hideUsersScreen()">← กลับ Dashboard</button>
+        <button class="btn-send" onclick="openAddUserModal()">+ เพิ่มผู้ใช้</button>
+      </div>
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+          <div class="sec-lbl" style="margin-bottom:0">รายชื่อผู้ใช้งานทั้งหมด</div>
+          <input type="text" id="u-search" placeholder="ค้นหาชื่อ / อีเมล / หน่วยงาน..." oninput="filterUsers(this.value)"
+            style="font-size:12px;padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);outline:none;width:220px;background:var(--color-bg-primary,#fff);color:var(--color-text-primary)">
+        </div>
+        <div id="u-rows">
+          <div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">กำลังโหลด...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- detail view -->
   <div id="sup-detail" style="display:none">
     <div style="padding:1.25rem">
@@ -98,10 +119,10 @@
           <textarea id="s-msg" placeholder="พิมพ์คอมเมนต์หรือข้อเสนอแนะ..."></textarea>
           <div class="compose-ft">
             <div class="tag-row" id="s-tags">
-              <button class="tb" onclick="stag(this)">รับทราบ</button>
-              <button class="tb" onclick="stag(this)">ต้องแก้ไข</button>
-              <button class="tb" onclick="stag(this)">ดีมาก</button>
-              <button class="tb" onclick="stag(this)">ติดตามด่วน</button>
+              <button class="tb tb-gray" onclick="stag(this)">รับทราบ</button>
+              <button class="tb tb-red" onclick="stag(this)">ต้องแก้ไข</button>
+              <button class="tb tb-green" onclick="stag(this)">ดีมาก</button>
+              <button class="tb tb-amber" onclick="stag(this)">ติดตามด่วน</button>
             </div>
             <button class="btn-send" onclick="sendCmt()">ส่ง</button>
           </div>
@@ -127,6 +148,84 @@
     </div>
     <div class="modal-ft">
       <button class="fb" onclick="closeDescModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- User Add/Edit Modal -->
+<div class="modal-ov" id="user-modal">
+  <div class="modal-bx" style="width:min(500px,94vw)">
+    <div class="modal-hd">
+      <div class="modal-ttl" id="user-modal-title">เพิ่มผู้ใช้ใหม่</div>
+      <button class="modal-cls" onclick="closeUserModal()">&times;</button>
+    </div>
+    <div class="modal-bd" style="display:flex;flex-direction:column;gap:11px;max-height:68vh;overflow-y:auto">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div class="fl" style="margin-bottom:4px">ชื่อ <span style="color:#e24b4a">*</span></div>
+          <input class="inp" id="u-firstname" placeholder="ชื่อ">
+        </div>
+        <div>
+          <div class="fl" style="margin-bottom:4px">นามสกุล <span style="color:#e24b4a">*</span></div>
+          <input class="inp" id="u-lastname" placeholder="นามสกุล">
+        </div>
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">อีเมล <span style="color:#e24b4a">*</span></div>
+        <input class="inp" id="u-email" placeholder="user@example.com" type="email">
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">รหัสประจำตัว <span style="color:#e24b4a">*</span></div>
+        <input class="inp" id="u-personal-id" placeholder="EMP001">
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">ตำแหน่ง</div>
+        <input class="inp" id="u-position" placeholder="นักวิชาการคอมพิวเตอร์">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div class="fl" style="margin-bottom:4px">หน่วยงาน</div>
+          <input class="inp" id="u-department" placeholder="วิทยบริการ">
+        </div>
+        <div>
+          <div class="fl" style="margin-bottom:4px">สังกัด</div>
+          <input class="inp" id="u-agency" placeholder="มทร.ล้านนา ตาก">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div class="fl" style="margin-bottom:4px">ระดับสิทธิ์</div>
+          <select class="inp" id="u-level" onchange="autoFillRole()">
+            <option value="0">0 — พนักงาน</option>
+            <option value="1">1 — หัวหน้างาน</option>
+            <option value="2">2 — ผู้อำนวยการ</option>
+            <option value="3">3 — ผู้บริหาร</option>
+            <option value="9">9 — ผู้ดูแลระบบ</option>
+          </select>
+        </div>
+        <div>
+          <div class="fl" style="margin-bottom:4px">บทบาท (role)</div>
+          <input class="inp" id="u-role" placeholder="employee">
+        </div>
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">
+          รหัสผ่าน
+          <span id="u-pwd-hint" style="color:var(--color-text-secondary);font-size:10px;margin-left:4px">(จำเป็น)</span>
+        </div>
+        <input class="inp" id="u-password" placeholder="••••••" type="password">
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">สถานะ ignore</div>
+        <select class="inp" id="u-ignore">
+          <option value="0">0 — ปกติ (แสดงในระบบ)</option>
+          <option value="1">1 — ซ่อน (ไม่แสดงในระบบ)</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" onclick="closeUserModal()">ยกเลิก</button>
+      <button class="btn-send" onclick="saveUser()">บันทึก</button>
     </div>
   </div>
 </div>

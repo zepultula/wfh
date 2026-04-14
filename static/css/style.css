@@ -163,6 +163,7 @@ textarea{resize:none;min-height:60px}
 .bdg-blue{background:#E6F1FB;color:#0C447C}
 .bdg-gray{background:#F1EFE8;color:#444441}
 .bdg-red{background:#FCEBEB;color:#791F1F}
+.bdg-indigo{background:#EEEDFE;color:#3C3489}
 
 /* ── stat grid ── */
 .stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:.875rem}
@@ -207,8 +208,20 @@ textarea{resize:none;min-height:60px}
 .compose textarea{border:none;border-radius:0;background:var(--color-background-primary);min-height:64px;font-size:13px}
 .compose-ft{padding:7px 10px;border-top:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;gap:8px}
 .tag-row{display:flex;gap:5px;flex-wrap:wrap}
-.tb{padding:2px 8px;border-radius:20px;font-size:11px;border:0.5px solid var(--color-border-secondary);background:none;cursor:pointer;color:var(--color-text-secondary);font-family:var(--font-sans)}
+.tb{padding:2px 8px;border-radius:20px;font-size:11px;border:0.5px solid var(--color-border-secondary);background:none;cursor:pointer;color:var(--color-text-secondary);font-family:var(--font-sans);transition:all .15s}
 .tb.on{background:#E6F1FB;color:#0C447C;border-color:#85B7EB}
+
+/* tag colors — default (subtle) */
+.tb-gray{color:#64748b;border-color:#d0cec8}
+.tb-red{color:#A83535;border-color:#E8BABA}
+.tb-green{color:#3D7010;border-color:#9FCC5A}
+.tb-amber{color:#8C5A10;border-color:#E5C070}
+
+/* tag colors — selected */
+.tb-gray.on{background:#F1EFE8;color:#3a3835;border-color:#b0ada5}
+.tb-red.on{background:#FCEBEB;color:#791F1F;border-color:#D88080}
+.tb-green.on{background:#EAF3DE;color:#27500A;border-color:#7DB840}
+.tb-amber.on{background:#FAEEDA;color:#633806;border-color:#D4940A}
 .btn-send{padding:6px 16px;background:linear-gradient(135deg, #1059A3 0%, #0C447C 100%);color:white;border:none;border-radius:var(--border-radius-md);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-sans);flex-shrink:0;box-shadow:0 2px 8px rgba(12, 68, 124, 0.2);transition:all 0.2s;}
 .btn-send:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(12, 68, 124, 0.3);}
 .sent-ok{font-size:11px;color:#1D9E75;text-align:center;margin-top:6px;display:none}
@@ -315,3 +328,8 @@ textarea{resize:none;min-height:60px}
 .history-mode .btn-del-task{display:none !important}
 .history-mode .btn-desc{pointer-events:auto}
 .history-mode .card:hover{transform:none;box-shadow:var(--shadow-md)}
+
+/* ── modal form inputs ── */
+.inp{width:100%;box-sizing:border-box;font-size:13px;padding:7px 10px;border:0.5px solid var(--color-border-primary);border-radius:var(--border-radius-md);background:var(--color-background-primary);color:var(--color-text-primary);outline:none;font-family:var(--font-sans);transition:border-color .15s}
+.inp:focus{border-color:#7EB3E8}
+.inp[readonly]{background:var(--color-background-secondary);color:var(--color-text-secondary);cursor:not-allowed}

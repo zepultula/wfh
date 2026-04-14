@@ -479,7 +479,9 @@ function renderComments(comments, containerId) {
       const isSrv = c.author_role.includes('หัวหน้า') || c.author_role.includes('แอดมิน');
       const b = document.createElement('div');
       b.className = 'cbubble';
-      const tag = c.tag ? `<span class="bdg bdg-blue" style="font-size:10px">${c.tag}</span>` : '';
+      const tagColorMap = { 'ต้องแก้ไข': 'bdg-red', 'ดีมาก': 'bdg-green', 'ติดตามด่วน': 'bdg-amber', 'รับทราบ': 'bdg-gray' };
+      const tagClass = c.tag ? (tagColorMap[c.tag] || 'bdg-blue') : '';
+      const tag = c.tag ? `<span class="bdg ${tagClass}" style="font-size:10px">${c.tag}</span>` : '';
       b.innerHTML = `
         <div class="av ${c.avatar_color || 'av-gray'} av-sm">${c.author_initials || '??'}</div>
         <div>

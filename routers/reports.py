@@ -54,38 +54,44 @@ def get_reports(date: str = None, authorization: str = Header(None)):
         raise HTTPException(status_code=401, detail="Invalid token")
     user_data = user_doc.to_dict()
     level = user_data.get("level", 0)
+    role = user_data.get("role", "").lower()
     personal_id = user_data.get("personal_id")
 
-    # หา target_ids ที่คนนี้มีสิทธิ์มองเห็น (ถ้าเป็น level 1-3)
+    # super admin: level 9 หรือ role มีคำว่า 'admin'
+    is_super_admin = level == 9 or 'admin' in role
+
+    # หา target_ids ที่คนนี้มีสิทธิ์มองเห็น (ถ้าเป็น level 1-3 และไม่ใช่ super admin)
     allowed_target_ids = set()
-    if 1 <= level <= 3:
-        evals = db.collection("evaluations").stream()
-        for e in evals:
-            e_data = e.to_dict()
-            for eval_node in e_data.get("evaluators", []):
-                if eval_node.get("evaluator_id") == personal_id:
-                    allowed_target_ids.add(e_data.get("target_id"))
-                    break
+    if not is_super_admin and 1 <= level <= 3:
+        for e in db.collection("evaluations") \
+                    .where("evaluator_ids", "array-contains", personal_id) \
+                    .stream():
+            allowed_target_ids.add(e.to_dict().get("target_id"))
 
     reports_ref = db.collection('reports')
     docs = reports_ref.stream()
-    
+
     reports = []
     for doc in docs:
         data = doc.to_dict()
         if date and not data.get('timestamp', '').startswith(date):
             continue
-            
+
         r_user_id = data.get('user_id')
-        
+
         # กรองข้อมูลตามสิทธิ์
-        if level == 0:
+        if is_super_admin:
+            pass  # เห็นได้ทุกคน
+        elif level == 0:
             if r_user_id != personal_id:
                 continue
         elif 1 <= level <= 3:
             if r_user_id not in allowed_target_ids and r_user_id != personal_id:
                 continue
-        # level == 9 เห็นได้ทุกคน ไม่ต้องกรอง
+        else:
+            # level อื่นที่ไม่ได้กำหนด — เห็นเฉพาะตัวเอง
+            if r_user_id != personal_id:
+                continue
             
         reports.append(data)
         
