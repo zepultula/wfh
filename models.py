@@ -4,9 +4,16 @@ from datetime import datetime
 
 class UserInfo(BaseModel):
     user_id: str
+    email: str
     name: str
     role: str
     department: str
+    agency: str
+    level: int
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 class TaskModel(BaseModel):
     id: int

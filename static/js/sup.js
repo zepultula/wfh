@@ -1,7 +1,36 @@
+const userLevel = parseInt(localStorage.getItem('user_level') || '0', 10);
+const userRole = (localStorage.getItem('user_role') || '').toLowerCase();
+const isSuperAdmin = userLevel > 0 || userRole.includes('admin') || userRole.includes('ผู้ดูแลระบบ');
+
+if (!isSuperAdmin) {
+  window.location.replace('/static/employee.html');
+}
+
 const thM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const thD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 let currentReportId = null;
-let currentUser = { user_id: 'SUP001', name: 'สมวิทย์ หัวหน้างาน', role: 'หัวหน้างาน / ผู้ดูแลระบบ' };
+let currentUser = null;
+
+async function initUser() {
+  try {
+    const res = await fetch('/api/me');
+    if (!res.ok) throw new Error('Unauth');
+    currentUser = await res.json();
+    document.getElementById('nb-av').textContent = getInitials(currentUser.name);
+    document.getElementById('nb-name').textContent = currentUser.name;
+    document.getElementById('nb-role').textContent = currentUser.role;
+  } catch(e) {
+    window.location.replace('/static/index.html');
+  }
+}
+initUser();
+
+window.doLogout = function() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_level');
+    window.location.replace('/static/index.html');
+};
 
 function tick(){
   const n=new Date();

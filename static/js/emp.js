@@ -210,22 +210,43 @@ function ep(v) {
 async function initializeApp() {
   try {
     const res = await fetch('/api/me');
-    if (res.ok) {
-      currentUser = await res.json();
-      document.getElementById('nb-av').textContent = getInitials(currentUser.name);
-      document.getElementById('nb-name').textContent = currentUser.name;
-      document.getElementById('nb-role').textContent = currentUser.role;
-      document.getElementById('info-name').textContent = currentUser.name;
-      document.getElementById('info-role').textContent = currentUser.role;
-      document.getElementById('info-dept').textContent = currentUser.department || '—';
-      updateDateNav();
-      loadTodaysReport();
+    if (!res.ok) {
+        window.location.replace('/static/index.html');
+        return;
     }
+    currentUser = await res.json();
+    document.getElementById('nb-av').textContent = getInitials(currentUser.name);
+    document.getElementById('nb-name').textContent = currentUser.name;
+    document.getElementById('nb-role').textContent = currentUser.role;
+    document.getElementById('info-name').textContent = currentUser.name;
+    document.getElementById('info-role').textContent = currentUser.role;
+    document.getElementById('info-dept').textContent = currentUser.department || '—';
+    
+    // Hide Admin button if not admin
+    const userLevel = parseInt(localStorage.getItem('user_level') || '0', 10);
+    const userRole = (localStorage.getItem('user_role') || '').toLowerCase();
+    const isSuperAdmin = userLevel > 0 || userRole.includes('admin') || userRole.includes('ผู้ดูแลระบบ');
+    const goAdminBtn = document.getElementById('goAdminBtn');
+    
+    if (!isSuperAdmin && goAdminBtn) {
+        goAdminBtn.style.display = 'none';
+    }
+
+    updateDateNav();
+    loadTodaysReport();
   } catch(e) {
     console.error('Failed to load user info:', e);
+    window.location.replace('/static/index.html');
   }
 }
 initializeApp();
+
+window.doLogout = function() {
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_level');
+    window.location.replace('/static/index.html');
+};
 
 /* ── Task management ── */
 function reindexTasks() {
@@ -341,7 +362,15 @@ document.querySelectorAll('.mode-opt').forEach(btn => {
 /* ── Submit report ── */
 document.getElementById('btn-submit').addEventListener('click', async () => {
   if (isHistoryMode) return;
-  if (!currentUser) { alert('กรุณารอให้ระบบโหลดข้อมูลผู้ใช้'); return; }
+  if (!currentUser) {
+    Swal.fire({
+      icon: 'warning',
+      title: 'รอสักครู่!',
+      text: 'กรุณารอให้ระบบโหลดข้อมูลผู้ใช้เสร็จสิ้น',
+      confirmButtonColor: '#1059A3'
+    });
+    return;
+  }
 
   const modeText = document.querySelector('.mode-opt.on').textContent.trim().toLowerCase();
   let work_mode = 'onsite';
@@ -379,14 +408,30 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     });
     if (res.ok) {
       currentReportExists = true;
-      alert('ส่งรายงานสำเร็จ!');
-      window.location.href = '/static/admin.html';
+      Swal.fire({
+        icon: 'success',
+        title: 'สำเร็จ!',
+        text: 'ส่งรายงานเรียบร้อยแล้ว',
+        confirmButtonColor: '#1D9E75'
+      }).then(() => {
+        window.location.href = '/static/admin.html';
+      });
     } else {
       const errorData = await res.json();
-      alert('เกิดข้อผิดพลาด: ' + (errorData.detail || 'Unknown error'));
+      Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: errorData.detail || 'Unknown error',
+        confirmButtonColor: '#1059A3'
+      });
     }
   } catch(e) {
-    alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + e.message);
+    Swal.fire({
+      icon: 'error',
+      title: 'เชื่อมต่อล้มเหลว',
+      text: e.message,
+      confirmButtonColor: '#1059A3'
+    });
   }
 });
 

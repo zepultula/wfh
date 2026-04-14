@@ -25,14 +25,50 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/api/me", response_model=UserInfo)
-def get_current_user():
-    """Return current user info (hardcoded for now, can be replaced with auth later)"""
+from fastapi import Header, HTTPException
+from models import LoginRequest
+
+@app.post("/api/login")
+def login(req: LoginRequest):
+    db = get_db()
+    users_ref = db.collection("users")
+    doc = users_ref.document(req.email).get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    user_data = doc.to_dict()
+    if user_data.get("password") != req.password:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+        
     return {
-        "user_id": "U001",
-        "name": "นายนักวิชาการ วิทยาคม",
-        "role": "นักวิชาการคอมพิวเตอร์ชำนาญการ",
-        "department": "งานระบบสารสนเทศ"
+        "status": "success",
+        "token": req.email, # For mockup we use email as a token
+        "user": user_data
+    }
+
+@app.get("/api/me", response_model=UserInfo)
+def get_current_user(authorization: str = Header(None)):
+    """Return current user info from token (email)"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+        
+    email = authorization.replace("Bearer ", "")
+    db = get_db()
+    doc = db.collection("users").document(email).get()
+    
+    if not doc.exists:
+        raise HTTPException(status_code=401, detail="Invalid token")
+        
+    user_data = doc.to_dict()
+    return {
+        "user_id": user_data.get("personal_id", ""),
+        "email": user_data.get("email", ""),
+        "name": f"{user_data.get('firstname', '')} {user_data.get('lastname', '')}",
+        "role": user_data.get("role", "employee"),
+        "department": user_data.get("department", ""),
+        "agency": user_data.get("agency", ""),
+        "level": user_data.get("level", 0)
     }
 
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])

@@ -39,26 +39,58 @@ def create_report(report: ReportCreate):
 
     return report_dict
 
+from fastapi import Header
+
 @router.get("/", response_model=List[ReportOut])
-def get_reports(date: str = None):
-    db = get_db()
-    reports_ref = db.collection('reports')
+def get_reports(date: str = None, authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    email = authorization.replace("Bearer ", "")
     
-    # Simple query implementation, could be optimized
+    db = get_db()
+    
+    user_doc = db.collection("users").document(email).get()
+    if not user_doc.exists:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_data = user_doc.to_dict()
+    level = user_data.get("level", 0)
+    personal_id = user_data.get("personal_id")
+
+    # หา target_ids ที่คนนี้มีสิทธิ์มองเห็น (ถ้าเป็น level 1-3)
+    allowed_target_ids = set()
+    if 1 <= level <= 3:
+        evals = db.collection("evaluations").stream()
+        for e in evals:
+            e_data = e.to_dict()
+            for eval_node in e_data.get("evaluators", []):
+                if eval_node.get("evaluator_id") == personal_id:
+                    allowed_target_ids.add(e_data.get("target_id"))
+                    break
+
+    reports_ref = db.collection('reports')
     docs = reports_ref.stream()
     
     reports = []
     for doc in docs:
         data = doc.to_dict()
-        # If date is provided, filter by date string 'YYYY-MM-DD'
         if date and not data.get('timestamp', '').startswith(date):
             continue
+            
+        r_user_id = data.get('user_id')
+        
+        # กรองข้อมูลตามสิทธิ์
+        if level == 0:
+            if r_user_id != personal_id:
+                continue
+        elif 1 <= level <= 3:
+            if r_user_id not in allowed_target_ids and r_user_id != personal_id:
+                continue
+        # level == 9 เห็นได้ทุกคน ไม่ต้องกรอง
+            
         reports.append(data)
         
-    # Sort by timestamp descending
     reports.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
     return reports
-
 @router.get("/{report_id}", response_model=ReportOut)
 def get_report(report_id: str):
     db = get_db()

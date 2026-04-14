@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WFH Daily Report — มทร.ล้านนา ตาก</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
     <style>
       body { align-items: center; justify-content: center; }
@@ -23,22 +24,79 @@
 <body>
 
 <div class="land-wrap">
-  <div class="land-logo">📋</div>
+  <div class="land-logo">🔒</div>
   <div class="land-title">WFH Daily Report</div>
   <div class="land-sub">ระบบรายงานการทำงานประจำวัน · มทร.ล้านนา ตาก</div>
 
-  <a href="/static/employee.html" class="land-btn land-btn-emp">
-    <div class="land-btn-title">👤 หน้าพนักงาน</div>
-    <div class="land-btn-sub">บันทึกรายงานการทำงานประจำวัน</div>
-  </a>
-
-  <a href="/static/admin.html" class="land-btn land-btn-sup">
-    <div class="land-btn-title">📊 หน้าแอดมิน / หัวหน้างาน</div>
-    <div class="land-btn-sub" style="color:var(--color-text-secondary)">ตรวจสอบและ Dashboard รายงาน</div>
-  </a>
+  <form id="loginForm" style="margin-bottom: 1.5rem;">
+    <div style="margin-bottom: 1rem;">
+      <label style="display: block; font-size: 13px; margin-bottom: 4px; color: var(--color-text-secondary);">อีเมล (Email)</label>
+      <input type="email" id="email" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--color-border-secondary); font-size: 15px;">
+    </div>
+    <div style="margin-bottom: 1.5rem;">
+      <label style="display: block; font-size: 13px; margin-bottom: 4px; color: var(--color-text-secondary);">รหัสผ่าน (Password)</label>
+      <input type="password" id="password" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--color-border-secondary); font-size: 15px;">
+    </div>
+    <button type="submit" class="land-btn land-btn-emp" style="width: 100%; border: none; cursor: pointer;">
+      <div class="land-btn-title">เข้าสู่ระบบ</div>
+    </button>
+    <div id="loginError" style="color: #e74c3c; font-size: 13px; text-align: center; margin-top: 10px; display: none;"></div>
+  </form>
 </div>
 
-<script src="/static/js/header.js?v=1.3.0"></script>
-<script src="/static/js/footer.js?v=1.3.0"></script>
+<script>
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const errorDiv = document.getElementById('loginError');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+
+    errorDiv.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.style.opacity = '0.7';
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.detail || 'การเข้าสู่ระบบล้มเหลว');
+      }
+
+      // Save token and info
+      localStorage.setItem('auth_token', data.token);
+      localStorage.setItem('user_role', data.user.role);
+      localStorage.setItem('user_level', data.user.level);
+
+      // Redirect based on role/level
+      const roleStr = (data.user.role || '').toLowerCase();
+      const isAdmin = data.user.level > 0 || roleStr.includes('admin') || roleStr.includes('ผู้ดูแลระบบ');
+      
+      if (!isAdmin) {
+        window.location.href = '/static/employee.html';
+      } else {
+        window.location.href = '/static/admin.html';
+      }
+      
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'เข้าสู่ระบบไม่สำเร็จ',
+        text: err.message,
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#1059A3'
+      });
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  });
+</script>
 </body>
 </html>
