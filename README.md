@@ -12,6 +12,7 @@
 - **Progress Scoring:** ระบุความคืบหน้าของงานเป็นร้อยละ (0-100%)
 - **Two-way Communication:** พนักงานและหัวหน้างานโต้ตอบกันผ่านคอมเมนต์ พร้อม Tag สถานะ (รับทราบ / ต้องแก้ไข / ดีมาก / ติดตามด่วน)
 - **History Browsing:** เรียกดูรายงานย้อนหลังแบบ Read-only เพื่อความถูกต้องของข้อมูล
+- **User Manual:** [คู่มือการใช้งานฉบับเต็ม](USER_MANUAL.md) สำหรับพนักงานและผู้ดูแลระบบ
 
 ### 2. ระบบยืนยันตัวตนและกำหนดสิทธิ์ (Auth & Authorization)
 - **Secure Login:** ระบบ Login ด้วย Email และ Password พร้อม Token-based Authentication
