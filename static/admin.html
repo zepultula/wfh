@@ -38,7 +38,11 @@
           <div style="font-size:16px;font-weight:500">รายงานประจำวัน</div>
           <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px" id="s-ts">—</div>
         </div>
-        <input type="date" id="s-date-filter" style="font-size:12px;padding:5px 8px;width:auto;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);color:var(--color-text-primary);outline:none" />
+        <div style="display:flex;align-items:center;gap:5px">
+          <button class="date-nav-btn" onclick="navigateAdminDate(-1)" title="วันก่อนหน้า">←</button>
+          <input type="date" id="s-date-filter" style="font-size:12px;padding:5px 8px;width:auto;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);color:var(--color-text-primary);outline:none" />
+          <button class="date-nav-btn" id="admin-btn-next" onclick="navigateAdminDate(1)" title="วันถัดไป" disabled>→</button>
+        </div>
       </div>
 
       <div class="stat-grid">

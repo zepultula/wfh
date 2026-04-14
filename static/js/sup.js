@@ -12,20 +12,81 @@ function tick(){
 }
 tick(); setInterval(tick,1000);
 
-// Set today's date in the date filter
-(function setDefaultDate(){
+/* ── Date helpers ── */
+function getTodayStr() {
   const n = new Date();
-  const d = `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+function formatDateThai(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return `วัน${thD[d.getDay()]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
+}
+
+function getReportDate(reportId) {
+  const m = reportId && reportId.match(/(\d{4}-\d{2}-\d{2})$/);
+  return m ? m[1] : null;
+}
+
+function getReportUserId(reportId) {
+  const d = getReportDate(reportId);
+  return d ? reportId.slice(0, reportId.length - d.length - 1) : reportId;
+}
+
+/* ── Set today's date in the date filter ── */
+(function setDefaultDate(){
+  const today = getTodayStr();
   const el = document.getElementById('s-date-filter');
-  if(el) { el.value = d; el.addEventListener('change', () => loadDashboard()); }
+  if (el) {
+    el.value = today;
+    el.max = today;
+    el.addEventListener('change', () => {
+      const nextBtn = document.getElementById('admin-btn-next');
+      if (nextBtn) nextBtn.disabled = el.value >= today;
+      loadDashboard();
+    });
+  }
+  const nextBtn = document.getElementById('admin-btn-next');
+  if (nextBtn) nextBtn.disabled = true;
 })();
 
+/* ── Admin date navigation ── */
+function navigateAdminDate(delta) {
+  const today = getTodayStr();
+  const dateEl = document.getElementById('s-date-filter');
+  if (!dateEl) return;
+  const base = dateEl.value || today;
+  const d = new Date(base + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const newDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (newDate > today) return;
+  dateEl.value = newDate;
+  const nextBtn = document.getElementById('admin-btn-next');
+  if (nextBtn) nextBtn.disabled = newDate >= today;
+  loadDashboard();
+}
+
+/* ── Employee date navigation (within detail view) ── */
+function navigateEmployeeReport(delta) {
+  if (!currentReportId) return;
+  const today = getTodayStr();
+  const currentDate = getReportDate(currentReportId);
+  const userId = getReportUserId(currentReportId);
+  if (!currentDate || !userId) return;
+  const d = new Date(currentDate + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  const newDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  if (newDate > today) return;
+  loadReportDetail(`${userId}_${newDate}`);
+}
+
+/* ── Dashboard ── */
 async function loadDashboard() {
   try {
     const dateEl = document.getElementById('s-date-filter');
     const dateParam = dateEl ? `?date=${dateEl.value}` : '';
     const res = await fetch(`/api/reports${dateParam}`);
-    if(res.ok) {
+    if (res.ok) {
       const data = await res.json();
       renderReports(data);
     }
@@ -37,7 +98,7 @@ async function loadDashboard() {
 loadDashboard();
 
 document.getElementById('s-filters').addEventListener('click', e => {
-  const btn = e.target.closest('.fb'); if(!btn) return;
+  const btn = e.target.closest('.fb'); if (!btn) return;
   document.querySelectorAll('.fb').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
   const f = btn.dataset.f;
@@ -46,10 +107,11 @@ document.getElementById('s-filters').addEventListener('click', e => {
   });
 });
 
+/* ── Detail view show/hide ── */
 function showDetail(reportId){
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'block';
-  if(reportId) loadReportDetail(reportId);
+  if (reportId) loadReportDetail(reportId);
 }
 
 function hideDetail(){
@@ -57,22 +119,44 @@ function hideDetail(){
   document.getElementById('sup-list').style.display = 'block';
 }
 
+/* ── Load report detail ── */
 async function loadReportDetail(reportId) {
   currentReportId = reportId;
   try {
     const res = await fetch(`/api/reports/${reportId}`);
-    if(res.ok) {
+    if (res.ok) {
       const report = await res.json();
       renderReportDetail(report);
+    } else if (res.status === 404) {
+      renderEmptyReportDetail(reportId);
     }
   } catch(e) {
     console.error('Error loading report:', e);
   }
 }
 
+/* ── Date nav HTML helper ── */
+function buildDetailDateNav(reportId) {
+  const today = getTodayStr();
+  const rDate = getReportDate(reportId);
+  const isToday = rDate === today;
+  const displayDate = rDate ? formatDateThai(rDate) : '—';
+  const isHistoric = rDate && rDate < today;
+  const historyLabel = isHistoric
+    ? `<span style="font-size:10px;background:#FFF8E1;color:#5D4037;border:0.5px solid #FFCA28;border-radius:4px;padding:2px 6px;margin-left:6px">ย้อนหลัง</span>`
+    : `<span style="font-size:10px;background:#E1F5EE;color:#085041;border:0.5px solid #A5D6C1;border-radius:4px;padding:2px 6px;margin-left:6px">วันนี้</span>`;
+  return `
+    <div class="date-nav" style="margin-bottom:.875rem">
+      <button class="date-nav-btn" onclick="navigateEmployeeReport(-1)">← วันก่อน</button>
+      <div class="date-nav-display">${displayDate}${historyLabel}</div>
+      <button class="date-nav-btn" onclick="navigateEmployeeReport(1)" ${isToday ? 'disabled' : ''}>วันถัดไป →</button>
+    </div>`;
+}
+
+/* ── Render report detail ── */
 function renderReportDetail(report) {
   const container = document.getElementById('sup-detail-content');
-  if(!container) return;
+  if (!container) return;
 
   const initials = getInitials(report.name);
   const workModeBadge = report.work_mode === 'wfh' ? '<span class="bdg bdg-blue">WFH</span>' :
@@ -99,7 +183,7 @@ function renderReportDetail(report) {
       }).join('')
     : '<div style="padding:7px 0;color:var(--color-text-secondary)">ไม่มีงาน</div>';
 
-  container.innerHTML = `
+  container.innerHTML = buildDetailDateNav(currentReportId) + `
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:.875rem;padding-bottom:.875rem;border-bottom:0.5px solid var(--color-border-tertiary)">
         <div class="av av-teal" style="width:40px;height:40px;font-size:13px">${initials}</div>
@@ -130,12 +214,29 @@ function renderReportDetail(report) {
   renderComments(report.comments, 's-thread');
 }
 
+/* ── Render empty detail (no report for date) ── */
+function renderEmptyReportDetail(reportId) {
+  const container = document.getElementById('sup-detail-content');
+  if (!container) return;
+
+  container.innerHTML = buildDetailDateNav(reportId) + `
+    <div class="card" style="text-align:center;padding:2rem 1.5rem">
+      <div style="font-size:36px;margin-bottom:12px">📭</div>
+      <div style="font-size:14px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px">ไม่พบรายงาน</div>
+      <div style="font-size:12px;color:var(--color-text-secondary)">พนักงานไม่ได้ส่งรายงานในวันที่เลือก</div>
+    </div>
+  `;
+
+  const thread = document.getElementById('s-thread');
+  if (thread) thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ยังไม่มีการสื่อสาร</div>';
+}
+
+/* ── Render report list ── */
 function renderReports(reports) {
   const sRows = document.getElementById('s-rows');
-  if(!sRows) return;
+  if (!sRows) return;
   sRows.innerHTML = '';
 
-  // Update stats
   const total = reports.length;
   const withProbs = reports.filter(r => r.problems && r.problems !== '-').length;
   document.getElementById('stat-total').textContent = total;
@@ -143,12 +244,11 @@ function renderReports(reports) {
   document.getElementById('stat-unsent').textContent = 0;
   document.getElementById('stat-prob').textContent = withProbs;
 
-  // Problems summary
   const probsList = document.getElementById('s-probs-list');
-  if(probsList) {
+  if (probsList) {
     probsList.innerHTML = '';
     const probs = reports.filter(r => r.problems && r.problems !== '-');
-    if(probs.length === 0) {
+    if (probs.length === 0) {
       probsList.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary)">ไม่มีปัญหาที่ต้องติดตาม</div>';
     } else {
       probs.forEach(r => {
@@ -164,7 +264,7 @@ function renderReports(reports) {
     }
   }
 
-  if(!reports || reports.length === 0) {
+  if (!reports || reports.length === 0) {
     sRows.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--color-text-secondary)">ไม่มีรายงาน</div>';
     return;
   }
@@ -203,6 +303,7 @@ function renderReports(reports) {
   });
 }
 
+/* ── Render comments ── */
 function renderComments(comments, containerId) {
   const thread = document.getElementById(containerId);
   if (!thread) return;
@@ -227,16 +328,18 @@ function renderComments(comments, containerId) {
   }
 }
 
+/* ── Tag selection ── */
 let selTag = '';
 function stag(el){
   document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
-  if(selTag !== el.textContent){ el.classList.add('on'); selTag = el.textContent; }
+  if (selTag !== el.textContent) { el.classList.add('on'); selTag = el.textContent; }
   else { selTag = ''; }
 }
 
+/* ── Send comment ── */
 async function sendCmt() {
   const msg = document.getElementById('s-msg').value.trim();
-  if(!msg || !currentReportId) return;
+  if (!msg || !currentReportId) return;
 
   const commentData = {
     author_id: currentUser.user_id,
@@ -251,10 +354,10 @@ async function sendCmt() {
   try {
     const res = await fetch(`/api/reports/${currentReportId}/comments`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(commentData)
     });
-    if(res.ok) {
+    if (res.ok) {
       document.getElementById('s-msg').value = '';
       document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
       selTag = '';
@@ -268,6 +371,7 @@ async function sendCmt() {
   }
 }
 
+/* ── Description modal (read-only) ── */
 function viewDesc(desc) {
   document.getElementById('task-desc-input').value = desc;
   document.getElementById('desc-modal').classList.add('on');
@@ -277,18 +381,19 @@ function closeDescModal() {
   document.getElementById('desc-modal').classList.remove('on');
 }
 
+/* ── Helpers ── */
 function getInitials(name) {
   return name.split(' ').slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
 }
 
 function getStatusBadgeClass(status) {
-  if(status === 'done') return 'bdg-green';
-  if(status === 'prog') return 'bdg-amber';
+  if (status === 'done') return 'bdg-green';
+  if (status === 'prog') return 'bdg-amber';
   return 'bdg-gray';
 }
 
 function getStatusSymbol(status) {
-  if(status === 'done') return '✓';
-  if(status === 'prog') return '⋯';
+  if (status === 'done') return '✓';
+  if (status === 'prog') return '⋯';
   return '◯';
 }

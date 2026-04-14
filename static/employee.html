@@ -38,6 +38,21 @@
       </div>
     </div>
 
+    <!-- date navigation -->
+    <div class="date-nav">
+      <button class="date-nav-btn" id="btn-prev-day" onclick="navigateDate(-1)">← ก่อนหน้า</button>
+      <div class="date-nav-display" id="nav-date-display">—</div>
+      <input type="date" id="nav-date-input" class="date-nav-input" onchange="onDateInputChange(this.value)" title="เลือกวันที่" />
+      <button class="date-nav-btn" id="btn-next-day" onclick="navigateDate(1)" disabled>ถัดไป →</button>
+      <button class="btn-today" id="btn-goto-today" onclick="goToToday()" style="display:none">วันนี้</button>
+    </div>
+
+    <!-- history mode banner -->
+    <div class="history-banner" id="history-banner">
+      <span class="history-banner-icon">📅</span>
+      <span id="history-banner-text">กำลังดูรายงานย้อนหลัง — ไม่สามารถแก้ไขได้</span>
+    </div>
+
     <!-- auto block -->
     <div class="auto-blk">
       <div class="auto-hd">
@@ -98,7 +113,7 @@
       <div class="cthread" id="e-thread" style="margin-top:10px">
         <div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ไม่มีการสื่อสาร</div>
       </div>
-      <div class="compose" style="margin-top:12px">
+      <div class="compose" id="e-compose-box" style="margin-top:12px">
         <div class="compose-hd">
           <div class="av av-teal" style="width:20px;height:20px;font-size:9px" id="e-cmt-av">—</div>
           <span id="e-cmt-name">กำลังโหลด...</span>
@@ -122,7 +137,7 @@
 <div class="modal-ov" id="desc-modal">
   <div class="modal-bx">
     <div class="modal-hd">
-      <div class="modal-ttl">📝 คำอธิบายงาน</div>
+      <div class="modal-ttl" id="modal-desc-title">📝 คำอธิบายงาน</div>
       <button class="modal-cls" onclick="closeDescModal()">&times;</button>
     </div>
     <div class="modal-bd">
@@ -130,8 +145,8 @@
       <textarea id="task-desc-input" placeholder="พิมพ์รายละเอียดงานที่นี่..."></textarea>
     </div>
     <div class="modal-ft">
-      <button class="fb" onclick="closeDescModal()">ยกเลิก</button>
-      <button class="btn-save" onclick="saveTaskDesc()">ตกลง</button>
+      <button class="fb" id="modal-cancel-btn" onclick="closeDescModal()">ยกเลิก</button>
+      <button class="btn-save" id="modal-save-btn" onclick="saveTaskDesc()">ตกลง</button>
     </div>
   </div>
 </div>

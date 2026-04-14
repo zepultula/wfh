@@ -291,3 +291,27 @@ textarea{resize:none;min-height:60px}
     margin-bottom: 20px;
   }
 }
+
+/* ── date navigation ── */
+.date-nav{display:flex;align-items:center;gap:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:6px 10px;margin-bottom:.875rem}
+.date-nav-btn{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;font-family:var(--font-sans);transition:all .15s;flex-shrink:0;white-space:nowrap}
+.date-nav-btn:hover:not(:disabled){background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.date-nav-btn:disabled{opacity:.3;cursor:not-allowed}
+.date-nav-display{flex:1;text-align:center;font-size:13px;font-weight:500;color:var(--color-text-primary)}
+.date-nav-input{font-size:11px;padding:3px 7px;border:0.5px solid var(--color-border-secondary);border-radius:6px;background:var(--color-background-primary);color:var(--color-text-secondary);outline:none;font-family:var(--font-sans);cursor:pointer}
+.btn-today{background:#E6F1FB;color:#0C447C;border:0.5px solid #C8DFF7;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:500;cursor:pointer;font-family:var(--font-sans);flex-shrink:0;transition:all .15s;white-space:nowrap}
+.btn-today:hover{background:#C8DFF7}
+
+/* ── history mode banner ── */
+.history-banner{display:none;align-items:center;gap:8px;background:#FFF8E1;border:0.5px solid #FFCA28;border-radius:var(--border-radius-md);padding:9px 12px;margin-bottom:.875rem;font-size:12px;color:#5D4037;animation:fadein 0.2s ease}
+.history-banner-icon{font-size:15px;flex-shrink:0}
+
+/* ── history mode — read-only visual state ── */
+.history-mode .spills,.history-mode .sp,.history-mode .mode-opt{pointer-events:none}
+.history-mode .mode-opt{opacity:.7}
+.history-mode input[type=text]{background:var(--color-background-secondary) !important;color:var(--color-text-secondary) !important;pointer-events:none}
+.history-mode textarea{background:var(--color-background-secondary) !important;color:var(--color-text-secondary) !important}
+.history-mode input[type=range]{pointer-events:none;opacity:.5}
+.history-mode .btn-del-task{display:none !important}
+.history-mode .btn-desc{pointer-events:auto}
+.history-mode .card:hover{transform:none;box-shadow:var(--shadow-md)}

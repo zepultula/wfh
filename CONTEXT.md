@@ -1,6 +1,6 @@
 # WFH Daily Report App — Context Summary
 
-**อัปเดตล่าสุด:** 2026-04-14 (เวอร์ชั่น 1.4.0)
+**อัปเดตล่าสุด:** 2026-04-14 (เวอร์ชั่น 1.5.0)
 
 ---
 
@@ -75,7 +75,31 @@ wfh/
 
 ### 7. ความเสถียร (System Stability)
 - `reload=False` ใน uvicorn — ป้องกัน zombie process
-- Resource versioning `?v=1.3.0` บน CSS/JS
+- Resource versioning `?v=1.2.1` บน emp.js/sup.js/style.css, `?v=1.3.0` บน header.js/footer.js
+
+### 8. การเรียกดูรายงานย้อนหลัง (Historical Report Browsing) — v1.5.0
+
+#### หน้าพนักงาน (`employee.html` + `emp.js`)
+- **Date navigation bar:** ← ก่อนหน้า | แสดงวันที่ (ไทย/พ.ศ.) | date input | ถัดไป → | ปุ่ม "วันนี้" (ซ่อนเมื่ออยู่วันปัจจุบัน)
+- **History banner:** แถบเหลือง "กำลังดูรายงานย้อนหลัง — ไม่สามารถแก้ไขได้" ปรากฏเมื่อไม่อยู่วันปัจจุบัน
+- **Read-only mode (3 ชั้น):**
+  - CSS: class `.history-mode` บน `#screen-emp` — ปิด pointer-events ทุก input/range/mode-btn
+  - HTML attrs: `readonly` บน textarea, `disabled` บน range input, task inputs
+  - JS guards: `if (isHistoryMode) return;` ในทุก event handler ที่เขียนข้อมูล
+- **ซ่อน UI เขียน:** ปุ่มเพิ่มงาน, ปุ่มส่งรายงาน, compose box คอมเมนต์
+- **Empty state:** แสดง "📭 ไม่พบรายงานในวันที่เลือก" เมื่อวันนั้นไม่มีรายงาน
+- **Modal คำอธิบายงาน:** สลับเป็น read-only อัตโนมัติเมื่ออยู่ใน history mode (ซ่อนปุ่ม "ตกลง")
+- **State variables:** `viewDate` (null = วันนี้), `isHistoryMode` (boolean)
+- **ID pattern:** `{user_id}_{YYYY-MM-DD}` — ใช้ reconstruct report ID ข้ามวันโดยไม่ต้องเพิ่ม endpoint ใหม่
+
+#### หน้าแอดมิน (`admin.html` + `sup.js`)
+- **Date navigation บน dashboard:** ปุ่ม ← → ขนาบ date filter — เปลี่ยนวันและเรียก `loadDashboard()` ใหม่
+- **Date navigation บน detail view (รายบุคคล):** `buildDetailDateNav(reportId)` — แสดงวันที่ + badge "วันนี้"/"ย้อนหลัง" + ปุ่ม ← → นำทางดูรายงานพนักงานข้ามวัน
+- **Empty state per employee:** `renderEmptyReportDetail(reportId)` — แสดง "📭 ไม่พบรายงาน" พร้อม date nav เมื่อ fetch 404
+- **ไม่เพิ่ม API endpoint:** ใช้ `GET /api/reports/{id}` เดิม — สร้าง ID ใหม่จาก `{userId}_{newDate}` โดย helper functions:
+  - `getReportDate(reportId)` — extract วันที่จาก ID ด้วย regex
+  - `getReportUserId(reportId)` — extract userId
+  - `navigateEmployeeReport(delta)` — เลื่อนวันในฝั่ง detail view
 
 ---
 
@@ -146,6 +170,7 @@ wfh/
 - [x] **v1.2.1** Server zombie process — เปลี่ยน `reload=True` → `reload=False`
 - [x] **v1.3.0** แยกหน้าพนักงานและแอดมินออกจากกัน (SPA → Multi-page)
 - [x] **v1.4.0** เพิ่ม site header และ footer แบบ shared injection ผ่าน JS
+- [x] **v1.5.0** เพิ่มการเรียกดูรายงานย้อนหลัง (read-only) ทั้งหน้าพนักงานและแอดมิน
 
 ---
 
@@ -154,3 +179,5 @@ wfh/
 - [ ] รองรับผู้ใช้หลายคน — ปัจจุบัน `/api/me` คืนค่า U001 เสมอ
 - [ ] เพิ่มระบบแจ้งเตือน (Notification) เมื่อมีคอมเมนต์ใหม่
 - [ ] ปรับปรุง Query รายงานย้อนหลังให้มีประสิทธิภาพสำหรับทีมขนาดใหญ่
+- [ ] เพิ่มปุ่มนำทางวันที่ใน landing page (index.html) หากต้องการ
+- [ ] Admin: แสดงรายการวันที่มีข้อมูลเพื่อนำทาง (calendar view) แทนการกดทีละวัน
