@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v2.7.0
+## 🚀 คุณสมบัติเด่น (Features) - v2.8.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน พร้อมระบบ Auto-save
@@ -52,6 +52,12 @@
 - **Excel Buttons:** SVG table grid icon + gradient สีเขียว
 - **Smooth Animations:** Page transition fade+slide (.22s) และ Collapsible table max-height transition (.28s) ที่ smooth ด้วย `requestAnimationFrame`
 
+### 8. Clean URL, Custom Pages & UX Polish (v2.8.0)
+- **Clean URLs:** ซ่อน path จริงของไฟล์ HTML — เข้าผ่าน `/`, `/employee`, `/admin`, `/logout` แทน `/static/*.html`
+- **Custom 404 Page:** หน้า Error ที่ออกแบบให้เข้ากับ Login — glass card + blobs animation, แสดง URL ที่ไม่พบ, ปุ่มกลับหน้าหลัก
+- **Logout Page:** หน้าออกจากระบบที่สมบูรณ์ — เคลียร์ Token ทันที, แสดงชื่อผู้ใช้ที่ logout, progress bar นับถอยหลัง 3 วินาที
+- **Employee Navbar Buttons:** ปุ่ม "แอดมิน" และ "ออกจากระบบ" ใช้ pill style เดียวกัน พร้อม SVG icon สอดคล้องกับ design system
+
 ---
 
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
@@ -59,15 +65,18 @@
 ```text
 wfh/
 ├── main.py                  # FastAPI server & entry point (ENV: APP_HOST, APP_PORT)
+├── auth.py                  # JWT utilities (create/decode token, Depends)
 ├── models.py                # Pydantic data models (Reports, Users, Auth)
 ├── database.py              # Firebase Admin SDK configuration (Singleton)
 ├── routers/
 │   ├── reports.py           # CRUD logic for reports & comments (with RBAC)
-│   └── admin.py             # User Management & Migration endpoints
+│   └── admin.py             # User Management, Evaluations, Stats & Export
 ├── static/
-│   ├── index.html           # Landing & Login page
-│   ├── employee.html        # Employee dashboard
-│   ├── admin.html           # Supervisor dashboard & User management
+│   ├── index.html           # Landing & Login page  → เข้าถึงผ่าน /
+│   ├── employee.html        # Employee dashboard    → เข้าถึงผ่าน /employee
+│   ├── admin.html           # Supervisor dashboard  → เข้าถึงผ่าน /admin
+│   ├── logout.html          # Logout page           → เข้าถึงผ่าน /logout
+│   ├── 404.html             # Custom 404 page
 │   ├── css/
 │   │   └── style.css        # Shared design system (Vanilla CSS)
 │   └── js/
@@ -157,6 +166,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 2.7.0
+- **เวอร์ชัน:** 2.8.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

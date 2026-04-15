@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ออกจากระบบ — WFH Daily Report</title>
+  <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
+  <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #1059A3 0%, #1D9E75 100%);
+      --glass-bg: rgba(255, 255, 255, 0.85);
+      --glass-border: rgba(255, 255, 255, 0.5);
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f0f4f8;
+      overflow: hidden;
+      font-family: var(--font-sans);
+    }
+
+    /* Animated Background Blobs */
+    .bg-blobs {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      top: 0;
+      left: 0;
+      z-index: -1;
+      background: linear-gradient(180deg, #f0f4f8 0%, #d9e2ec 100%);
+    }
+
+    .blob {
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      filter: blur(80px);
+      border-radius: 50%;
+      opacity: 0.15;
+      animation: move 20s infinite alternate;
+    }
+
+    .blob-1 { top: -100px; left: -100px; background: #1059A3; }
+    .blob-2 { bottom: -100px; right: -100px; background: #1D9E75; animation-delay: -5s; }
+
+    @keyframes move {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(50px, 100px) scale(1.1); }
+    }
+
+    /* Card — เดียวกับ .land-wrap ของ Login */
+    .land-wrap {
+      width: 100%;
+      max-width: 400px;
+      padding: 2.5rem;
+      background: var(--glass-bg);
+      backdrop-filter: blur(15px);
+      -webkit-backdrop-filter: blur(15px);
+      border: 1px solid var(--glass-border);
+      border-radius: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+      animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+      position: relative;
+      z-index: 10;
+      text-align: center;
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Logo — เหมือน Login แต่ใช้ gradient เขียว/ฟ้าอ่อน เพื่อสื่อถึงความสำเร็จ */
+    .land-logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, #1D9E75 0%, #1059A3 100%);
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem;
+      box-shadow: 0 8px 16px rgba(29, 158, 117, 0.25);
+    }
+
+    .land-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #102a43;
+      margin-bottom: 0.5rem;
+    }
+
+    .land-sub {
+      font-size: 14px;
+      color: #627d98;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+
+    /* Divider */
+    .divider {
+      width: 40px;
+      height: 3px;
+      background: var(--primary-gradient);
+      border-radius: 2px;
+      margin: 0 auto 1.75rem;
+      opacity: 0.4;
+    }
+
+    /* ชื่อผู้ใช้ที่ logout */
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(16, 89, 163, 0.07);
+      border: 1px solid rgba(16, 89, 163, 0.12);
+      border-radius: 100px;
+      padding: 6px 14px 6px 8px;
+      font-size: 13px;
+      color: #1059A3;
+      font-weight: 500;
+      margin-bottom: 1.75rem;
+    }
+
+    .user-chip-avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary-gradient);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* Progress bar นับถอยหลัง */
+    .countdown-wrap {
+      margin-bottom: 1.75rem;
+    }
+
+    .countdown-label {
+      font-size: 12px;
+      color: #9fb3c8;
+      margin-bottom: 6px;
+    }
+
+    .progress-bar-bg {
+      height: 4px;
+      background: #e8eef4;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--primary-gradient);
+      border-radius: 99px;
+      width: 100%;
+      transition: width linear;
+    }
+
+    /* ปุ่มกลับ Login */
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 12px;
+      background: var(--primary-gradient);
+      color: white;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(16, 89, 163, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      box-sizing: border-box;
+    }
+
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(16, 89, 163, 0.3);
+    }
+
+    .btn-login:active {
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Animated background -->
+  <div class="bg-blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+  </div>
+
+  <div class="land-wrap">
+
+    <!-- Logo — checkmark แทน clipboard เพื่อสื่อถึงการ logout สำเร็จ -->
+    <div class="land-logo">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 6L9 17l-5-5" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="land-title">ออกจากระบบสำเร็จ</div>
+    <div class="land-sub">ขอบคุณที่ใช้งานระบบรายงานผล<br>มทร.ล้านนา ตาก</div>
+
+    <div class="divider"></div>
+
+    <!-- แสดงชื่อผู้ใช้ที่ logout -->
+    <div class="user-chip" id="userChip" style="display:none">
+      <div class="user-chip-avatar" id="userAvatar"></div>
+      <span id="userName"></span>
+    </div>
+
+    <!-- นับถอยหลัง -->
+    <div class="countdown-wrap">
+      <div class="countdown-label">กำลังพากลับหน้าเข้าสู่ระบบใน <span id="sec">3</span> วินาที...</div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+    </div>
+
+    <!-- ปุ่มกลับ Login ทันที -->
+    <a href="/" class="btn-login" id="loginBtn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+        <polyline points="10 17 15 12 10 7"/>
+        <line x1="15" y1="12" x2="3" y2="12"/>
+      </svg>
+      เข้าสู่ระบบอีกครั้ง
+    </a>
+
+  </div>
+
+  <script>
+    //? เคลียร์ข้อมูลผู้ใช้ทั้งหมดออกจาก LocalStorage ทันทีที่โหลดหน้านี้
+    const savedName  = localStorage.getItem('user_name') || '';
+    const savedRole  = localStorage.getItem('user_role') || '';
+
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_level');
+    localStorage.removeItem('user_name');
+
+    //? แสดง chip ชื่อผู้ใช้ถ้ามีข้อมูลอยู่ก่อน logout
+    if (savedName) {
+      const initials = savedName.trim().split(' ')
+        .map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      document.getElementById('userAvatar').textContent = initials;
+      document.getElementById('userName').textContent   = savedName;
+      document.getElementById('userChip').style.display = 'inline-flex';
+    }
+
+    //? นับถอยหลัง 3 วินาที แล้ว redirect ไปหน้า Login
+    const DURATION = 3000;
+    const bar      = document.getElementById('progressBar');
+    const secEl    = document.getElementById('sec');
+    const start    = performance.now();
+
+    //! ต้องเริ่ม transition หลัง paint แรกเพื่อให้ animation ทำงาน
+    requestAnimationFrame(() => {
+      bar.style.transition = `width ${DURATION}ms linear`;
+      bar.style.width = '0%';
+    });
+
+    const tick = (now) => {
+      const elapsed = now - start;
+      const left    = Math.max(0, DURATION - elapsed);
+      secEl.textContent = Math.ceil(left / 1000);
+      if (left > 0) {
+        requestAnimationFrame(tick);
+      } else {
+        window.location.replace('/');
+      }
+    };
+    requestAnimationFrame(tick);
+  </script>
+
+</body>
+</html>

@@ -35,11 +35,8 @@
     const logoutBtn = document.getElementById('logoutBtn');
     logoutBtn.style.display = 'block';
     logoutBtn.addEventListener('click', () => {
-      //? เคลียร์ข้อมูลทั้งหมดใน Browser และส่งกลับไปหน้า Login
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('user_role');
-      localStorage.removeItem('user_level');
-      window.location.href = '/static/index.html';
+      //? ส่งไปหน้า /logout ซึ่งจะเคลียร์ token และแสดงข้อความ logout สำเร็จ
+      window.location.href = '/logout';
     });
   }
 })();
@@ -70,8 +67,8 @@ window.fetch = async function(resource, init) {
   //? ตรวจสอบสถานภาพการเชื่อมต่อ: หากได้รับ 401 (Unauthorized) 
   //! แสดงว่า Token หมดอายุ หรือไม่ถูกต้อง: ให้ทำการ Logout อัตโนมัติเพื่อความปลอดภัย
   if (response.status === 401 && !resource.includes('/api/login')) {
-    localStorage.removeItem('auth_token');
-    window.location.href = '/static/index.html';
+    //! Token หมดอายุหรือถูก revoke — ไปหน้า logout เพื่อเคลียร์ session อย่างสมบูรณ์
+    window.location.href = '/logout';
   }
   return response;
 };

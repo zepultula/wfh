@@ -306,7 +306,7 @@ async function initializeApp() {
     const res = await fetch('/api/me');
     if (!res.ok) {
         //? หาก Session หมดอายุหรือไม่ได้ Login ให้เด้งกลับไปหน้าแรกทันที
-        window.location.replace('/static/index.html');
+        window.location.replace('/');
         return;
     }
     currentUser = await res.json();
@@ -337,17 +337,17 @@ async function initializeApp() {
   } catch(e) {
     //! เตือน: หากโหลดข้อมูล User ไม่สำเร็จ (เช่น Token แปะมาผิด) ให้ส่งกลับหน้า Login ทันที
     console.error('Failed to load user info:', e);
-    window.location.replace('/static/index.html');
+    window.location.replace('/');
   }
 }
 initializeApp();
 
-//? ฟังก์ชัน Logout: เคลียร์ข้อมูลทั้งหมดใน Browser แล้วกลับหน้าแรก
+//? ฟังก์ชัน Logout: บันทึกชื่อไว้แสดงในหน้า logout แล้วพากลับหน้า Logout
 window.doLogout = function() {
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('user_level');
-    window.location.replace('/static/index.html');
+    if (currentUser && currentUser.name) {
+        localStorage.setItem('user_name', currentUser.name);
+    }
+    window.location.replace('/logout');
 };
 
 /* ── จัดการลำดับงาน (Task management) ── */
@@ -579,7 +579,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
         confirmButtonColor: '#1D9E75'
       }).then(() => {
         //? หลังจากส่งเสร็จ ให้เด้งกลับไปหน้า Admin (หน้าแรกของผู้ใช้)
-        window.location.href = '/static/admin.html';
+        window.location.href = '/admin';
       });
     } else {
       //? รับข้อมูล Error จาก Backend มาแสดงผลให้ผู้ใช้ทราบ

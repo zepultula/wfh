@@ -6,7 +6,7 @@ const isSuperAdmin = userLevel > 0 || userRole.includes('admin') || userRole.inc
 
 //? หากไม่ใช่กลุ่มแอดมิน ให้ดีดกลับไปหน้าพนักงานทันที
 if (!isSuperAdmin) {
-  window.location.replace('/static/employee.html');
+  window.location.replace('/employee');
 }
 
 const thM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -39,7 +39,7 @@ async function initUser() {
     if (btnSt) btnSt.style.display = '';
   } catch(e) {
     //? หากไม่มีสิทธิ์หรือ Session หมดอายุ ให้ส่งไปหน้า Login
-    window.location.replace('/static/index.html');
+    window.location.replace('/');
   }
 }
 initUser();
@@ -47,10 +47,11 @@ initUser();
 //? ฟังก์ชันสำหรับออกจากระบบ: ล้างข้อมูลสิทธิ์ใน LocalStorage และพากลับไปหน้า Login
 window.doLogout = function() {
     //! สำคัญ: ต้องล้างทั้ง Token และข้อมูล Role/Level เพื่อป้องกันการแสดงผลเมนูตกค้าง
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_role');
-    localStorage.removeItem('user_level');
-    window.location.replace('/static/index.html');
+    //? บันทึกชื่อก่อนลบ เพื่อให้หน้า logout แสดง chip ชื่อได้
+    if (currentUser && currentUser.name) {
+        localStorage.setItem('user_name', currentUser.name);
+    }
+    window.location.replace('/logout');
 };
 
 //? ฟังก์ชันแสดงนาฬิกาและวันที่ปัจจุบันแบบไทย (พ.ศ.) ในหน้าจอ

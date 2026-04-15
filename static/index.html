@@ -270,7 +270,7 @@
       const isAdmin = data.user.level > 0 || roleStr.includes('admin') || roleStr.includes('ผู้ดูแลระบบ');
 
       setTimeout(() => {
-        window.location.href = isAdmin ? '/static/admin.html' : '/static/employee.html';
+        window.location.href = isAdmin ? '/admin' : '/employee';
       }, 600);
 
     } catch (err) {

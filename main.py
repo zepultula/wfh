@@ -2,10 +2,11 @@ from dotenv import load_dotenv
 #? โหลดค่า Configuration จากไฟล์ .env (เช่น API Keys หรือ Database URL)
 load_dotenv()
 
-from fastapi import FastAPI, Header, HTTPException, Depends
+from fastapi import FastAPI, Header, HTTPException, Depends, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from routers import reports, admin
 from models import LoginRequest, UserInfo
 from auth import create_access_token, get_current_user
@@ -21,6 +22,15 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="WFH Daily Report API", lifespan=lifespan)
+
+#? จัดการ Error 404 ทุกกรณี — ให้แสดงหน้า 404.html แทน JSON error default ของ FastAPI
+@app.exception_handler(StarletteHTTPException)
+async def not_found_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return FileResponse("static/404.html", status_code=404)
+    #! กรณี HTTP error อื่น ๆ ที่ไม่ใช่ 404 ให้ยังคง raise ต่อไปตามปกติ
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
 #? ตั้งค่า CORS (Cross-Origin Resource Sharing) 
 #! ในสภาพแวดล้อมจริง (Production) ควรระบุ Origins ที่ชัดเจนแทน "*" เพื่อความปลอดภัย
@@ -131,17 +141,33 @@ def get_users(current_user: dict = Depends(get_current_user)):
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
+#? Page routes ต้องกำหนดก่อน app.mount() เสมอ มิฉะนั้น FastAPI จะไม่พบ route
+#? ให้หน้าแรก (Login) Serve ไฟล์ HTML โดยตรง ซ่อน URL จริงของไฟล์
+@app.get("/")
+def index():
+    return FileResponse("static/index.html")
+
+#? หน้าพนักงาน — ใช้ URL สะอาด /employee แทน /static/employee.html
+@app.get("/employee/")
+def employee_page():
+    return FileResponse("static/employee.html")
+
+#? หน้าแอดมิน — ใช้ URL สะอาด /admin แทน /static/admin.html
+@app.get("/admin/")
+def admin_page():
+    return FileResponse("static/admin.html")
+
+#? หน้า Logout — เคลียร์ Session และแสดงข้อความสำเร็จก่อน redirect กลับ Login
+@app.get("/logout/")
+def logout_page():
+    return FileResponse("static/logout.html")
+
 # Ensure static directories exist
 os.makedirs("static/css", exist_ok=True)
 os.makedirs("static/js", exist_ok=True)
 
-# Serve static files
+#! app.mount ต้องอยู่หลัง @app.get() routes ทั้งหมด — Mount sub-app จะกิน routes ที่ตามมา
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-#? ให้หน้าแรก Redirect ไปยังไฟล์ HTML ของ Frontend
-@app.get("/")
-def index():
-    return RedirectResponse(url="/static/index.html")
 
 if __name__ == "__main__":
     import uvicorn
