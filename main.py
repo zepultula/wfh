@@ -206,6 +206,11 @@ def admin_page():
 def logout_page():
     return FileResponse("static/logout.html")
 
+#? Serve favicon.ico จาก root directory โดยตรง — ป้องกัน 404 ที่ browser ร้องขออัตโนมัติ
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse("favicon.ico")
+
 # Ensure static directories exist
 os.makedirs("static/css", exist_ok=True)
 os.makedirs("static/js", exist_ok=True)
