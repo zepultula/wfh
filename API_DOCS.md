@@ -57,13 +57,13 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 ตรวจสอบ credentials และออก JWT Token
 
 **รองรับ 2 รูปแบบ:**
-- Email เต็ม: `zepultula@rmutl.ac.th`
-- Username ย่อ: `zepultula` (ระบบค้นหา email จาก Firestore ด้วย range query อัตโนมัติ)
+- Email เต็ม: `zootopia@rmutl.ac.th`
+- Username ย่อ: `zootopia` (ระบบค้นหา email จาก Firestore ด้วย range query อัตโนมัติ)
 
 **Request Body**
 ```json
 {
-  "email": "zepultula",
+  "email": "zootopia",
   "password": "plaintext_password"
 }
 ```
@@ -160,7 +160,7 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 [
   {
     "user_id": "EMP001",
-    "name": "พิสิษฐ์ สุขใส",
+    "name": "สมชาย วงค์แหวน",
     "role": "supervisor",
     "position": "นักวิชาการคอมพิวเตอร์",
     "department": "วิทยบริการ",
@@ -218,7 +218,7 @@ GET /api/reports?date=2026-04-15
 ```json
 {
   "user_id": "EMP001",
-  "name": "พิสิษฐ์ สุขใส",
+  "name": "สมชาย วงค์แหวน",
   "role": "supervisor",
   "department": "วิทยบริการ",
   "work_mode": "wfh",
