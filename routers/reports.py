@@ -64,7 +64,7 @@ def get_reports(date: str = None, authorization: str = Header(None)):
     allowed_target_ids = set()
     if not is_super_admin and 1 <= level <= 3:
         for e in db.collection("evaluations") \
-                    .where("evaluator_ids", "array-contains", personal_id) \
+                    .where("evaluator_ids", "array_contains", personal_id) \
                     .stream():
             allowed_target_ids.add(e.to_dict().get("target_id"))
 
