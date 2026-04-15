@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v2.9.0
+## 🚀 คุณสมบัติเด่น (Features) - v3.0.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน พร้อมระบบ Auto-save
@@ -15,7 +15,7 @@
 - **User Manual:** [คู่มือการใช้งานฉบับเต็ม](USER_MANUAL.md) สำหรับพนักงานและผู้ดูแลระบบ
 
 ### 2. ระบบยืนยันตัวตนและจัดการ Profile (Auth & Profile)
-- **Secure Login:** ระบบ Login ด้วย Email และ Password พร้อม JWT Authentication (HS256)
+- **Secure Login:** ระบบ Login ด้วย Email/Password หรือ **Username ย่อ** (เช่น `zepultula` แทน `zepultula@rmutl.ac.th`) พร้อม JWT Authentication (HS256)
 - **User Profile & Self-Reset Password (v2.9.0):**
   - **User Dropdown Menu:** แถบเมนูผู้ใช้ดีไซน์ Glassmorphism แสดงชื่อและตำแหน่งที่มุมขวาบน
   - **Profile Information:** ดูข้อมูลส่วนตัว (ชื่อ, อีเมล, รหัสพนักงาน, ตำแหน่ง, สังกัด) ผ่าน Modal
@@ -171,6 +171,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 2.9.0
+- **เวอร์ชัน:** 3.0.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

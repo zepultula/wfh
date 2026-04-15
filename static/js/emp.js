@@ -314,9 +314,9 @@ async function initializeApp() {
     //? นำข้อมูลพนักงาน (ชื่อ, ตำแหน่ง, ฝ่าย) มาอัปเดตลงบน Navigation Bar และ Profile Panel
     document.getElementById('nb-av').textContent = getInitials(currentUser.name);
     document.getElementById('nb-name').textContent = currentUser.name;
-    document.getElementById('nb-role').textContent = currentUser.role;
+    document.getElementById('nb-role').textContent = currentUser.position || currentUser.role;
     document.getElementById('info-name').textContent = currentUser.name;
-    document.getElementById('info-role').textContent = currentUser.role;
+    document.getElementById('info-role').textContent = currentUser.position || currentUser.role;
     document.getElementById('info-dept').textContent = currentUser.department || '—';
     
     //? จัดการเรื่องสิทธิ์การใช้งาน (RBAC - Role Based Access Control) สำหรับเมนูผู้ดูแล
@@ -387,7 +387,7 @@ window.showProfileModal = function() {
     document.getElementById('p-name').textContent = currentUser.name || '—';
     document.getElementById('p-email').textContent = currentUser.email || '—';
     document.getElementById('p-id').textContent = currentUser.user_id || '—';
-    document.getElementById('p-role').textContent = currentUser.role || '—';
+    document.getElementById('p-role').textContent = currentUser.position || currentUser.role || '—';
     document.getElementById('p-level').textContent = currentUser.level || '0';
     document.getElementById('p-dept').textContent = currentUser.department + (currentUser.agency ? ` / ${currentUser.agency}` : '');
     
@@ -675,7 +675,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
   const reportData = {
     user_id: currentUser.user_id,
     name: currentUser.name,
-    role: currentUser.role,
+    role: currentUser.position || currentUser.role,  //? แสดงตำแหน่งงานจริง (position) ในรายงาน แทนการแสดง auth role
     department: currentUser.department,
     work_mode,
     progress: parseInt(document.getElementById('e-prog').value) || 0,

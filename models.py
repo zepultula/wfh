@@ -8,6 +8,7 @@ class UserInfo(BaseModel):
     email: str
     name: str
     role: str
+    position: str = ""  #? ตำแหน่งงานจริงของพนักงาน (เช่น อาจารย์, ผู้ช่วยศาสตราจารย์) ใช้สำหรับแสดงผลแทน role
     department: str
     agency: str
     level: int

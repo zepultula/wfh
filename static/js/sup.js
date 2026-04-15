@@ -24,7 +24,7 @@ async function initUser() {
     //? แสดงอักษรย่อและข้อมูลส่วนตัวในแถบเมนู
     document.getElementById('nb-av').textContent = getInitials(currentUser.name);
     document.getElementById('nb-name').textContent = currentUser.name;
-    document.getElementById('nb-role').textContent = currentUser.role;
+    document.getElementById('nb-role').textContent = currentUser.position || currentUser.role;
 
     //? จัดการการมองเห็นเมนูจัดการ (Management) ตามสิทธิ์
     //? Level 9 หรือ 'admin' จะเห็นเมนูจัดการผู้ใช้และสายบังคับบัญชา
@@ -83,7 +83,7 @@ window.showProfileModal = function() {
     document.getElementById('p-name').textContent = currentUser.name || '—';
     document.getElementById('p-email').textContent = currentUser.email || '—';
     document.getElementById('p-id').textContent = currentUser.user_id || '—';
-    document.getElementById('p-role').textContent = currentUser.role || '—';
+    document.getElementById('p-role').textContent = currentUser.position || currentUser.role || '—';
     document.getElementById('p-level').textContent = currentUser.level || '0';
     document.getElementById('p-dept').textContent = currentUser.department + (currentUser.agency ? ` / ${currentUser.agency}` : '');
     
@@ -529,7 +529,7 @@ function renderReports(reports, users = []) {
               <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-bottom:4px">
                 <span style="font-size:10px;font-weight:500;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">พนักงาน</span>
                 <span style="font-size:13px;font-weight:600;color:var(--color-text-primary)">${r.name}</span>
-                <span style="font-size:11px;color:var(--color-text-secondary)">${r.role || ''}${r.department ? ' · ' + r.department : ''}</span>
+                <span style="font-size:11px;color:var(--color-text-secondary)">${r.position || r.role || ''}${r.department ? ' · ' + r.department : ''}</span>
               </div>
               <div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap">
                 <span style="font-size:10px;font-weight:500;color:#A33;text-transform:uppercase;letter-spacing:.04em;flex-shrink:0">ปัญหา</span>
@@ -662,7 +662,7 @@ function renderReports(reports, users = []) {
             <div class="av av-sm ${avatarColor}" style="filter:grayscale(.5)">${initials}</div>
             <div class="rmain">
               <div class="rname">${u.name}</div>
-              <div class="rmeta">${u.role || ''} · <span style="color:#E24B4A;font-weight:500">ยังไม่ส่งรายงาน</span></div>
+              <div class="rmeta">${u.position || u.role || ''} · <span style="color:#E24B4A;font-weight:500">ยังไม่ส่งรายงาน</span></div>
             </div>
             <div class="pcol">
               <div class="ppct" style="color:var(--color-text-secondary)">—</div>

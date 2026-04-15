@@ -48,30 +48,46 @@ def login(req: LoginRequest):
     #? ดึงอินสแตนซ์ของฐานข้อมูล Firestore
     db = get_db()
     users_ref = db.collection("users")
-    doc = users_ref.document(req.email).get()
 
-    if not doc.exists:
-        #! หากไม่พบ Email ในระบบ จะส่ง Error 401 กลับไป (ไม่ควรบอกว่าอีเมลผิดหรือรหัสผ่านผิดเพื่อความปลอดภัย)
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    #? รองรับการ Login ด้วย username ย่อ (ไม่มี @domain) โดยค้นหา email ที่ขึ้นต้นด้วย username นั้น
+    if "@" not in req.email:
+        username = req.email.strip().lower()
+        doc = None
+        #? ค้นหา email field ที่อยู่ในช่วง username@ ถึง username + ตัวอักษรหลัง @
+        for d in users_ref \
+                .where("email", ">=", username + "@") \
+                .where("email", "<", username + "A") \
+                .limit(1).stream():
+            doc = d
+        if doc is None:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+    else:
+        doc = users_ref.document(req.email).get()
+        if not doc.exists:
+            #! หากไม่พบ Email ในระบบ จะส่ง Error 401 กลับไป (ไม่ควรบอกว่าอีเมลผิดหรือรหัสผ่านผิดเพื่อความปลอดภัย)
+            raise HTTPException(status_code=401, detail="Invalid email or password")
 
     user_data = doc.to_dict()
     if user_data.get("password") != req.password:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    #? ใช้ doc.id (Document ID = email) เป็น sub เพื่อให้ตรงกันทั้งกรณีกรอกเต็มและ username ย่อ
     token = create_access_token({
-        "sub": req.email,
+        "sub": doc.id,
         "user_id": user_data.get("personal_id", ""),
         "name": f"{user_data.get('firstname', '')} {user_data.get('lastname', '')}".strip(),
         "role": user_data.get("role", "employee"),
+        "position": user_data.get("position", ""),  #? เพิ่มตำแหน่งงานจริงลงใน Token เพื่อใช้แสดงผลแทน role
         "level": user_data.get("level", 0),
         "department": user_data.get("department", ""),
         "agency": user_data.get("agency", ""),
     })
 
+    #? คืนค่า token และข้อมูล user พร้อม email จริงจาก Firestore (doc.id)
     return {
         "status": "success",
         "token": token,
-        "user": user_data
+        "user": {**user_data, "email": doc.id}
     }
 
 #? API สำหรับดึงข้อมูลของผู้ใช้งานที่ Login อยู่ ณ ปัจจุบัน
@@ -83,6 +99,7 @@ def me(current_user: dict = Depends(get_current_user)):
         "email": current_user.get("sub", ""),
         "name": current_user.get("name", ""),
         "role": current_user.get("role", "employee"),
+        "position": current_user.get("position", ""),  #? ตำแหน่งงานจริง ใช้แสดงผลแทน role ใน UI
         "department": current_user.get("department", ""),
         "agency": current_user.get("agency", ""),
         "level": current_user.get("level", 0),
@@ -156,6 +173,7 @@ def get_users(current_user: dict = Depends(get_current_user)):
             "user_id": u_pid,
             "name": name,
             "role": u.get("role", ""),
+            "position": u.get("position", ""),  #? เพิ่มตำแหน่งงานจริงเพื่อให้ Frontend แสดงแทน role
             "department": u.get("department", ""),
             "ignore": u.get("ignore", 0),
         })
