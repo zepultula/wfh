@@ -1315,7 +1315,13 @@ function toggleStatsDeptCollapse(dept) {
 
 async function exportStatsExcel() {
   const month = (document.getElementById('stats-month-picker') || {}).value || _getDefaultMonth();
+  const btn = document.getElementById('btn-export-excel');
+  const origText = btn ? btn.innerHTML : '';
   try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>กำลังดาวน์โหลด...';
+    }
     const res = await fetch(`/api/admin/stats/export?month=${encodeURIComponent(month)}`);
     if (!res.ok) throw new Error('Export failed');
     const blob = await res.blob();
@@ -1327,7 +1333,38 @@ async function exportStatsExcel() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    if (btn) { btn.innerHTML = '✓ ดาวน์โหลดแล้ว'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
   } catch(e) {
     alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+
+async function exportDailyReportExcel() {
+  const dateEl = document.getElementById('s-date-filter');
+  const dateVal = dateEl ? dateEl.value : getTodayStr();
+  if (!dateVal) { alert('กรุณาเลือกวันที่'); return; }
+  const btn = document.querySelector('[onclick="exportDailyReportExcel()"]');
+  const origText = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>กำลังโหลด...';
+    }
+    const res = await fetch(`/api/admin/reports/export?date=${encodeURIComponent(dateVal)}`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daily_report_${dateVal}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    if (btn) { btn.innerHTML = '✓ สำเร็จ'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
+  } catch(e) {
+    alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
   }
 }

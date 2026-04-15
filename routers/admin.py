@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 import re
 import calendar
-from datetime import date
+from datetime import date as date_mod
 
 router = APIRouter()
 
@@ -244,7 +244,7 @@ def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
 
     year, mon = int(month[:4]), int(month[5:7])
     _, num_days = calendar.monthrange(year, mon)
-    weekdays = sum(1 for d in range(1, num_days + 1) if date(year, mon, d).weekday() < 5)
+    weekdays = sum(1 for d in range(1, num_days + 1) if date_mod(year, mon, d).weekday() < 5)
 
     # Fetch active users (filtered by allowed_user_ids if provided)
     users_map = {}
@@ -380,7 +380,7 @@ def export_stats(month: str, authorization: str = Header(None)):
     sub_cell = ws["A2"]
     sub_cell.value = (f"วันทำงาน (จันทร์–ศุกร์): {data['weekdays']} วัน  |  "
                       f"ผู้ใช้งานทั้งหมด: {len(data['users'])} คน  |  "
-                      f"สร้างวันที่: {date.today().strftime('%d/%m/')+str(date.today().year+543)}")
+                      f"สร้างวันที่: {date_mod.today().strftime('%d/%m/')}{date_mod.today().year+543}")
     sub_cell.font = Font(size=9, color="64748B")
     sub_cell.alignment = left
     ws.row_dimensions[2].height = 18
@@ -462,6 +462,264 @@ def export_stats(month: str, authorization: str = Header(None)):
     output.seek(0)
 
     filename = f"stats_{month}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Daily Report Export ──────────────────────────────────────────────────────
+
+@router.get("/reports/export")
+def export_daily_reports(date: str, authorization: str = Header(None)):
+    """Export รายงานประจำวันเป็นไฟล์ Excel (.xlsx) — admin level 1+, กรองตามสิทธิ์
+    date = 'YYYY-MM-DD'"""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    if not re.match(r'^\d{4}-\d{2}-\d{2}$', date):
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+
+    db, user_data = _require_any_admin(authorization)
+    allowed = _get_visible_user_ids(db, user_data)
+
+    # Fetch all active users
+    users_map = {}
+    for doc in db.collection("users").stream():
+        u = doc.to_dict()
+        if u.get("ignore", 0) == 0:
+            pid = u.get("personal_id")
+            if pid:
+                if allowed is not None and pid not in allowed:
+                    continue
+                users_map[pid] = {
+                    "personal_id": pid,
+                    "name": f"{u.get('firstname', '')} {u.get('lastname', '')}".strip(),
+                    "position": u.get("position", ""),
+                    "department": u.get("department", ""),
+                }
+
+    # Fetch reports for the given date
+    reports_map = {}
+    for doc in db.collection("reports").stream():
+        r = doc.to_dict()
+        if not r.get("timestamp", "").startswith(date):
+            continue
+        uid = r.get("user_id")
+        if uid in users_map:
+            reports_map[uid] = r
+
+    # ── Thai formatting ──
+    th_months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+                 "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    th_days = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+    d = date_mod(int(date[:4]), int(date[5:7]), int(date[8:10]))
+    thai_date = f"วัน{th_days[d.weekday()]}ที่ {d.day} {th_months[d.month]} {d.year + 543}"
+
+    status_map = {"done": "✓ เสร็จสิ้น", "prog": "⋯ กำลังดำเนินการ", "pend": "◯ รอดำเนินการ"}
+    mode_map = {"wfh": "WFH (ทำงานที่บ้าน)", "onsite": "On-site (ทำงานที่สำนักงาน)", "hybrid": "Hybrid (ทำทั้งที่บ้านและที่ทำงาน)"}
+
+    # ── Build Excel ──
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"รายงาน {date}"
+
+    def side_thin():
+        return Side(style="thin", color="CCCCCC")
+
+    def cell_border():
+        return Border(left=side_thin(), right=side_thin(), top=side_thin(), bottom=side_thin())
+
+    hdr_fill = PatternFill("solid", fgColor="1059A3")
+    dept_fill = PatternFill("solid", fgColor="E8EFF8")
+    unsent_fill = PatternFill("solid", fgColor="FCEBEB")
+    green_fill = PatternFill("solid", fgColor="D4EDDA")
+    yellow_fill = PatternFill("solid", fgColor="FFF3CD")
+    red_fill = PatternFill("solid", fgColor="F8D7DA")
+    alt_fill = PatternFill("solid", fgColor="F9FAFB")
+    white_fill = PatternFill("solid", fgColor="FFFFFF")
+
+    hdr_font = Font(bold=True, color="FFFFFF", size=10)
+    dept_font = Font(bold=True, color="1A3A6B", size=10)
+    body_font = Font(size=10)
+    body_wrap = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_center = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # ── Title ──
+    ws.merge_cells("A1:L1")
+    title_cell = ws["A1"]
+    title_cell.value = f"สรุปรายงานประจำวัน {thai_date}"
+    title_cell.font = Font(bold=True, size=13, color="1059A3")
+    title_cell.alignment = center
+    ws.row_dimensions[1].height = 28
+
+    sent_count = len(reports_map)
+    unsent_count = len(users_map) - sent_count
+    ws.merge_cells("A2:L2")
+    sub_cell = ws["A2"]
+    sub_cell.value = (f"ส่งแล้ว: {sent_count} คน  |  ยังไม่ส่ง: {unsent_count} คน  |  "
+                      f"ทั้งหมด: {len(users_map)} คน  |  "
+                      f"สร้างวันที่: {date_mod.today().strftime('%d/%m/')}{date_mod.today().year+543}")
+    sub_cell.font = Font(size=9, color="64748B")
+    sub_cell.alignment = left_center
+    ws.row_dimensions[2].height = 18
+
+    # ── Header row ──
+    headers = [
+        ("ลำดับ", 6), ("ชื่อ-สกุล", 24), ("ตำแหน่ง", 18), ("หน่วยงาน", 18),
+        ("รูปแบบ\nทำงาน", 14), ("ความคืบหน้า\n(%)", 11),
+        ("รายการงาน", 40), ("สถานะงาน", 15),
+        ("ปัญหา / อุปสรรค", 28), ("แผนวันพรุ่งนี้", 28),
+        ("คอมเมนต์", 30), ("เวลาส่ง", 10),
+    ]
+    col_letters = [chr(65 + i) if i < 26 else chr(64 + i // 26) + chr(65 + i % 26) for i in range(len(headers))]
+    for i, (title, width) in enumerate(headers):
+        c = ws.cell(row=3, column=i + 1, value=title)
+        c.font = hdr_font
+        c.fill = hdr_fill
+        c.alignment = center
+        c.border = cell_border()
+        ws.column_dimensions[col_letters[i]].width = width
+    ws.row_dimensions[3].height = 32
+
+    # ── Data rows (sent) ──
+    row_num = 4
+    seq = 0
+
+    # Group sent users by department
+    sent_by_dept = {}
+    for pid, uinfo in users_map.items():
+        if pid in reports_map:
+            dept = uinfo["department"] or "ไม่ระบุหน่วยงาน"
+            sent_by_dept.setdefault(dept, []).append((uinfo, reports_map[pid]))
+
+    for dept in sorted(sent_by_dept.keys()):
+        members = sent_by_dept[dept]
+        # Dept header
+        ws.merge_cells(f"A{row_num}:L{row_num}")
+        dc = ws.cell(row=row_num, column=1, value=f"  📁 {dept}  ({len(members)} คน ส่งแล้ว)")
+        dc.font = dept_font
+        dc.fill = dept_fill
+        dc.alignment = left_center
+        dc.border = cell_border()
+        ws.row_dimensions[row_num].height = 20
+        row_num += 1
+
+        for idx, (uinfo, report) in enumerate(members):
+            seq += 1
+            fill = alt_fill if idx % 2 == 0 else white_fill
+
+            tasks = report.get("tasks", [])
+            task_lines = "\n".join(
+                [f"{i+1}. {t.get('title', '-')}" for i, t in enumerate(tasks)]
+            ) or "-"
+            status_lines = "\n".join(
+                [status_map.get(t.get("status", ""), t.get("status", "-")) for t in tasks]
+            ) or "-"
+
+            problems = report.get("problems", "-") or "-"
+            plan = report.get("plan_tomorrow", "-") or "-"
+            progress = report.get("progress", 0)
+            work_mode = mode_map.get(report.get("work_mode", ""), report.get("work_mode", "-"))
+            submit_time = report.get("submit_time", "-")
+
+            # Comments
+            comments = report.get("comments", [])
+            comment_lines = "\n".join(
+                [f"[{c.get('author_name', '-')}] {c.get('message', '')}"
+                 + (f" #{c['tag']}" if c.get('tag') else "")
+                 for c in comments]
+            ) or "-"
+
+            prog_fill = green_fill if progress >= 80 else (yellow_fill if progress >= 50 else red_fill)
+
+            row_data = [
+                seq, uinfo["name"], uinfo["position"], uinfo["department"],
+                work_mode, progress,
+                task_lines, status_lines,
+                problems, plan, comment_lines, submit_time,
+            ]
+            max_lines = max(
+                task_lines.count("\n") + 1,
+                status_lines.count("\n") + 1,
+                comment_lines.count("\n") + 1,
+                1
+            )
+            for col_idx, val in enumerate(row_data):
+                c = ws.cell(row=row_num, column=col_idx + 1, value=val)
+                c.font = body_font
+                c.border = cell_border()
+                c.alignment = body_wrap
+                if col_idx == 5:  # progress
+                    c.fill = prog_fill
+                    c.alignment = center
+                elif col_idx == 0:  # seq
+                    c.alignment = center
+                    c.fill = fill
+                else:
+                    c.fill = fill
+
+            ws.row_dimensions[row_num].height = max(16, min(max_lines * 15, 120))
+            row_num += 1
+
+    # ── Unsent section ──
+    unsent_users = [u for pid, u in users_map.items() if pid not in reports_map]
+    if unsent_users:
+        row_num += 1
+        ws.merge_cells(f"A{row_num}:L{row_num}")
+        unsent_hdr = ws.cell(row=row_num, column=1,
+                             value=f"  ❌ ยังไม่ส่งรายงาน ({len(unsent_users)} คน)")
+        unsent_hdr.font = Font(bold=True, color="791F1F", size=11)
+        unsent_hdr.fill = unsent_fill
+        unsent_hdr.alignment = left_center
+        unsent_hdr.border = cell_border()
+        ws.row_dimensions[row_num].height = 22
+        row_num += 1
+
+        # Group unsent by department
+        unsent_by_dept = {}
+        for u in unsent_users:
+            dept = u["department"] or "ไม่ระบุหน่วยงาน"
+            unsent_by_dept.setdefault(dept, []).append(u)
+
+        for dept in sorted(unsent_by_dept.keys()):
+            members = unsent_by_dept[dept]
+            ws.merge_cells(f"A{row_num}:L{row_num}")
+            dc = ws.cell(row=row_num, column=1, value=f"  📁 {dept}  ({len(members)} คน)")
+            dc.font = dept_font
+            dc.fill = dept_fill
+            dc.alignment = left_center
+            dc.border = cell_border()
+            ws.row_dimensions[row_num].height = 18
+            row_num += 1
+
+            for idx, u in enumerate(members):
+                seq += 1
+                fill = PatternFill("solid", fgColor="FFF5F5") if idx % 2 == 0 else unsent_fill
+                row_data = [
+                    seq, u["name"], u["position"], u["department"],
+                    "-", "-", "-", "-", "-", "-", "-", "ยังไม่ส่ง",
+                ]
+                for col_idx, val in enumerate(row_data):
+                    c = ws.cell(row=row_num, column=col_idx + 1, value=val)
+                    c.font = Font(size=10, color="791F1F") if col_idx == 11 else body_font
+                    c.border = cell_border()
+                    c.alignment = center if col_idx in (0, 5, 11) else body_wrap
+                    c.fill = fill
+                ws.row_dimensions[row_num].height = 16
+                row_num += 1
+
+    # Freeze header
+    ws.freeze_panes = "A4"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"daily_report_{date}.xlsx"
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
