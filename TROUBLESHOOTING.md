@@ -33,17 +33,19 @@
 
 | Browser | ปุ่มลัด |
 |---------|---------|
-| ![Chrome](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Google_Chrome_icon_%28February_2022%29.svg/24px-Google_Chrome_icon_%28February_2022%29.svg.png) Google Chrome | `Ctrl + Shift + Delete` |
-| ![Firefox](https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Firefox_logo%2C_2019.svg/24px-Firefox_logo%2C_2019.svg.png) Mozilla Firefox | `Ctrl + Shift + Delete` |
-| ![Edge](https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/24px-Microsoft_Edge_logo_%282019%29.svg.png) Microsoft Edge | `Ctrl + Shift + Delete` |
+| ![Chrome](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/chrome/chrome_24x24.png) Google Chrome | `Ctrl + Shift + Delete` |
+| ![Firefox](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/firefox/firefox_24x24.png) Mozilla Firefox | `Ctrl + Shift + Delete` |
+| ![Edge](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/edge/edge_24x24.png) Microsoft Edge | `Ctrl + Shift + Delete` |
 
 **ขั้นตอนสำหรับ Google Chrome:**
 
 1. กด `Ctrl + Shift + Delete` เพื่อเปิดหน้าต่างล้าง Cache
 
-   ![Chrome Clear Cache Dialog](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Google_Chrome_icon_%28February_2022%29.svg/64px-Google_Chrome_icon_%28February_2022%29.svg.png)
+   ![Chrome Clear Browsing Data](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/chrome/chrome_64x64.png)
 
-2. เลือก **ช่วงเวลา** เป็น `ตลอดเวลา` (All time)
+   > หน้าต่าง "Clear browsing data" จะเปิดขึ้นมา
+
+2. เลือก **ช่วงเวลา** เป็น `All time` (ตลอดเวลา)
 3. ติ๊กถูก ✅ ที่รายการต่อไปนี้:
    - **Cookies and other site data**
    - **Cached images and files**
@@ -60,7 +62,7 @@
 1. คลิกไอคอน 🔒 ที่ Address Bar ซ้ายมือ
 2. เลือก **"Site settings"**
 
-   ![Site Settings Icon](https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Google_Chrome_for_Android_Icon_2016.svg/64px-Google_Chrome_for_Android_Icon_2016.svg.png)
+   ![Site Settings](https://img.shields.io/badge/🔒_Address_Bar_→_Site_settings-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)
 
 3. เลื่อนหา **"Storage"** หรือ **"Cookies and site data"**
 4. ตรวจสอบว่าไม่ได้ตั้งเป็น **"Block"**
@@ -70,7 +72,7 @@
 
 #### วิธีที่ 3 — อย่าใช้ Private / Incognito Mode
 
-![Incognito Icon](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Google_Chrome_icon_%28February_2022%29.svg/48px-Google_Chrome_icon_%28February_2022%29.svg.png)
+![Incognito Warning](https://img.shields.io/badge/⚠️_Incognito_Mode-อาจทำให้_LocalStorage_ทำงานผิดปกติ-red?style=for-the-badge)
 
 การใช้ **Private Mode** (หน้าต่างส่วนตัว) อาจทำให้ LocalStorage ถูกจำกัดสิทธิ์หรือถูกล้างเมื่อปิดหน้าต่าง แนะนำให้ใช้ Browser แบบปกติ (Normal Window)
 
@@ -86,7 +88,7 @@
 
 1. **ตรวจสอบ Caps Lock**
 
-   ![Keyboard](https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat_03.jpg/1px-Cat_03.jpg)
+   ![Caps Lock](https://img.shields.io/badge/⌨️_Caps_Lock-ตรวจสอบว่าปิดอยู่-orange?style=flat-square)
 
    ตรวจสอบว่าปุ่ม `Caps Lock` ไม่ได้เปิดอยู่ เพราะรหัสผ่านในระบบนี้เป็น Case-sensitive
 
@@ -99,7 +101,7 @@
 
 3. **ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต**
 
-   ![Network Icon](https://upload.wikimedia.org/wikipedia/commons/thumb/6/66/Ethernet_Connection.jpg/120px-Ethernet_Connection.jpg)
+   ![Internet Check](https://img.shields.io/badge/🌐_Internet-ตรวจสอบการเชื่อมต่อ-blue?style=flat-square)
 
    เปิดเว็บไซต์อื่น เช่น google.com เพื่อยืนยันว่าอินเทอร์เน็ตทำงานปกติ
 
@@ -134,7 +136,7 @@
 
 #### ขั้นที่ 1 — ตรวจสอบอินเทอร์เน็ต
 
-![WiFi Signal](https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/Wifi_icon.png/120px-Wifi_icon.png)
+![WiFi Check](https://img.shields.io/badge/📶_WiFi-ตรวจสอบการเชื่อมต่อก่อนเป็นอันดับแรก-0078D4?style=for-the-badge)
 
 ระบบดึงข้อมูลแบบ Real-time จาก Server ทุกครั้ง หากอินเทอร์เน็ตขาดหาย ข้อมูลจะไม่แสดง
 
@@ -147,7 +149,7 @@
 
 #### ขั้นที่ 3 — กด Hard Refresh
 
-![Refresh Icon](https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Refresh_icon.png/64px-Refresh_icon.png)
+![Hard Refresh](https://img.shields.io/badge/⟳_Hard_Refresh-Ctrl_+_Shift_+_R-555555?style=for-the-badge)
 
 กด `Ctrl + Shift + R` (หรือ `Cmd + Shift + R` บน Mac) เพื่อ Force Reload หน้าเว็บโดยไม่ใช้ Cache
 
@@ -186,7 +188,7 @@
 
 **อาการ:** กดปุ่มดาวน์โหลด Excel แต่ไม่มีไฟล์ถูก Download หรือ Browser บล็อก
 
-![Excel Icon](https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/Microsoft_Office_Excel_%282019%E2%80%93present%29.svg/64px-Microsoft_Office_Excel_%282019%E2%80%93present%29.svg.png)
+![Excel Badge](https://img.shields.io/badge/Microsoft_Excel-217346?style=for-the-badge&logo=microsoftexcel&logoColor=white)
 
 #### สาเหตุที่พบบ่อย
 
@@ -250,15 +252,18 @@
 
 ### Browser ที่แนะนำ
 
-![Browsers](https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Google_Chrome_icon_%28February_2022%29.svg/32px-Google_Chrome_icon_%28February_2022%29.svg.png) ![Firefox](https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Firefox_logo%2C_2019.svg/32px-Firefox_logo%2C_2019.svg.png) ![Edge](https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/Microsoft_Edge_logo_%282019%29.svg/32px-Microsoft_Edge_logo_%282019%29.svg.png)
+![Chrome](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/chrome/chrome_32x32.png)
+![Firefox](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/firefox/firefox_32x32.png)
+![Edge](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/edge/edge_32x32.png)
+![Safari](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/safari/safari_32x32.png)
 
-| Browser | เวอร์ชันขั้นต่ำที่แนะนำ | หมายเหตุ |
-|---------|----------------------|---------|
-| Google Chrome | 100+ | แนะนำ |
-| Microsoft Edge | 100+ | แนะนำ |
-| Mozilla Firefox | 100+ | รองรับ |
-| Safari | 15+ | รองรับ (Mac/iOS) |
-| Internet Explorer | ❌ ไม่รองรับ | โปรดเปลี่ยน Browser |
+| Browser | Logo | เวอร์ชันขั้นต่ำ | หมายเหตุ |
+|---------|------|--------------|---------|
+| Google Chrome | ![](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/chrome/chrome_24x24.png) | 100+ | แนะนำ |
+| Microsoft Edge | ![](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/edge/edge_24x24.png) | 100+ | แนะนำ |
+| Mozilla Firefox | ![](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/firefox/firefox_24x24.png) | 100+ | รองรับ |
+| Safari | ![](https://cdn.jsdelivr.net/gh/alrra/browser-logos@main/src/safari/safari_24x24.png) | 15+ | รองรับ (Mac/iOS) |
+| Internet Explorer | ❌ | ไม่รองรับ | โปรดเปลี่ยน Browser |
 
 ---
 
