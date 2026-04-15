@@ -2,12 +2,14 @@
  * Site Header — ส่วนหัวระบบ
  * แก้ไขชื่อระบบ / ชื่อมหาวิทยาลัยที่ไฟล์นี้เพียงแห่งเดียว
  */
+//? IIFE (Immediately Invoked Function Expression) เพื่อสร้าง Header และจัดการปุ่ม Logout ทันทีที่โหลดสคริปต์
 (function () {
   const header = document.createElement('header');
   header.className = 'site-header';
+  //? กำหนดรูปแบบ HTML ของ Header (Logo, ชื่อโครงการ, และปุ่มออกจากระบบ)
   header.innerHTML = `
     <div class="site-header-inner" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-      <div style="display:flex; align-items:center;">
+      <div style="display:flex; align-items:center; gap:12px;">
         <div class="site-header-logo">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>
@@ -25,13 +27,15 @@
       </div>
     </div>
   `;
+  //? นำ Header ไปใส่ไว้บนสุดของ <body>
   document.body.prepend(header);
 
-  // Show logout button if logged in
+  //? ตรวจสอบสถานะการ Login: หากพบ Token ในเครื่อง ให้แสดงปุ่มออกจากระบบ
   if (localStorage.getItem('auth_token')) {
     const logoutBtn = document.getElementById('logoutBtn');
     logoutBtn.style.display = 'block';
     logoutBtn.addEventListener('click', () => {
+      //? เคลียร์ข้อมูลทั้งหมดใน Browser และส่งกลับไปหน้า Login
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user_role');
       localStorage.removeItem('user_level');
@@ -40,14 +44,17 @@
   }
 })();
 
-// Intercept fetch API to automatically pass the Authorization token
+//? ระบบ Fetch Interceptor — หัวใจหลักในการจัดการความปลอดภัย
+//? ทำการ Override ฟังก์ชัน fetch เดิมของ Browser เพื่อให้แนบ Auth Token ไปทุกครั้งที่เรียก API
 const originalFetch = window.fetch;
 window.fetch = async function(resource, init) {
+  //? ตรวจสอบว่าเป็นการเรียกไปยัง Backend API (ยกเว้นหน้า Login)
   if (typeof resource === 'string' && resource.startsWith('/api/') && !resource.includes('/api/login')) {
     init = init || {};
     init.headers = init.headers || {};
     const token = localStorage.getItem('auth_token');
     
+    //? หากมี Token อยู่ในเครื่อง ให้แนบเข้าไปใน Header (Bearer Authentication)
     if (token) {
       if (init.headers instanceof Headers) {
         init.headers.set('Authorization', 'Bearer ' + token);
@@ -57,9 +64,11 @@ window.fetch = async function(resource, init) {
     }
   }
   
+  //? เรียกใช้งาน fetch ตัวจริงพร้อมพารามิเตอร์ที่แก้ไขแล้ว
   const response = await originalFetch(resource, init);
   
-  // If Unauthorized, force logout
+  //? ตรวจสอบสถานภาพการเชื่อมต่อ: หากได้รับ 401 (Unauthorized) 
+  //! แสดงว่า Token หมดอายุ หรือไม่ถูกต้อง: ให้ทำการ Logout อัตโนมัติเพื่อความปลอดภัย
   if (response.status === 401 && !resource.includes('/api/login')) {
     localStorage.removeItem('auth_token');
     window.location.href = '/static/index.html';

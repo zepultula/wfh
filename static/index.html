@@ -7,55 +7,222 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="/static/css/style.css?v=1.2.1">
     <style>
-      body { align-items: center; justify-content: center; }
-      .land-wrap { width: 100%; max-width: 380px; padding: 2rem 1rem; }
-      .land-logo { width: 56px; height: 56px; background: #E6F1FB; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 1rem; font-size: 26px; }
-      .land-title { font-size: 20px; font-weight: 600; text-align: center; }
-      .land-sub { font-size: 13px; color: var(--color-text-secondary); text-align: center; margin-top: 4px; margin-bottom: 2rem; }
-      .land-btn { display: block; padding: 18px 20px; border-radius: var(--border-radius-lg); text-decoration: none; text-align: center; margin-bottom: 12px; transition: all 0.2s; }
-      .land-btn:hover { transform: translateY(-2px); }
-      .land-btn-title { font-size: 15px; font-weight: 600; }
-      .land-btn-sub { font-size: 11px; margin-top: 3px; opacity: 0.8; }
-      .land-btn-emp { background: linear-gradient(135deg, #1059A3 0%, #0C447C 100%); color: white; box-shadow: 0 4px 12px rgba(12,68,124,0.2); }
-      .land-btn-sup { background: var(--color-background-primary); color: var(--color-text-primary); border: 1px solid var(--color-border-secondary); box-shadow: var(--shadow-sm); }
-      .land-btn-sup .land-btn-sub { color: var(--color-text-secondary); opacity: 1; }
+      :root {
+        --primary-gradient: linear-gradient(135deg, #1059A3 0%, #1D9E75 100%);
+        --glass-bg: rgba(255, 255, 255, 0.85);
+        --glass-border: rgba(255, 255, 255, 0.5);
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f0f4f8;
+        overflow: hidden;
+        font-family: var(--font-sans);
+      }
+
+      /* Animated Background Blobs */
+      .bg-blobs {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
+        z-index: -1;
+        background: linear-gradient(180deg, #f0f4f8 0%, #d9e2ec 100%);
+      }
+
+      .blob {
+        position: absolute;
+        width: 500px;
+        height: 500px;
+        background: var(--primary-gradient);
+        filter: blur(80px);
+        border-radius: 50%;
+        opacity: 0.15;
+        animation: move 20s infinite alternate;
+      }
+
+      .blob-1 { top: -100px; left: -100px; background: #1059A3; }
+      .blob-2 { bottom: -100px; right: -100px; background: #1D9E75; animation-delay: -5s; }
+
+      @keyframes move {
+        from { transform: translate(0, 0) scale(1); }
+        to { transform: translate(50px, 100px) scale(1.1); }
+      }
+
+      .land-wrap {
+        width: 100%;
+        max-width: 400px;
+        padding: 2.5rem;
+        background: var(--glass-bg);
+        backdrop-filter: blur(15px);
+        -webkit-backdrop-filter: blur(15px);
+        border: 1px solid var(--glass-border);
+        border-radius: 24px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+        animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        position: relative;
+        z-index: 10;
+      }
+
+      @keyframes slideUp {
+        from { opacity: 0; transform: translateY(30px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .land-logo {
+        width: 64px;
+        height: 64px;
+        background: var(--primary-gradient);
+        border-radius: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1.5rem;
+        box-shadow: 0 8px 16px rgba(16, 89, 163, 0.25);
+      }
+
+      .land-title {
+        font-size: 22px;
+        font-weight: 700;
+        text-align: center;
+        color: #102a43;
+        margin-bottom: 0.5rem;
+      }
+
+      .land-sub {
+        font-size: 14px;
+        color: #627d98;
+        text-align: center;
+        margin-bottom: 2.5rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.25rem;
+      }
+
+      .form-label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        margin-bottom: 6px;
+        color: #486581;
+      }
+
+      .form-input {
+        width: 100%;
+        padding: 12px 16px;
+        border-radius: 12px;
+        border: 1px solid #d9e2ec;
+        background: rgba(255, 255, 255, 0.9);
+        font-size: 15px;
+        transition: all 0.2s ease;
+        box-sizing: border-box;
+      }
+
+      .form-input:focus {
+        border-color: #1059A3;
+        box-shadow: 0 0 0 4px rgba(16, 89, 163, 0.1);
+        outline: none;
+        background: #fff;
+      }
+
+      .btn-login {
+        width: 100%;
+        padding: 14px;
+        border: none;
+        border-radius: 12px;
+        background: var(--primary-gradient);
+        color: white;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(16, 89, 163, 0.2);
+        margin-top: 1rem;
+      }
+
+      .btn-login:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 20px rgba(16, 89, 163, 0.3);
+      }
+
+      .btn-login:active {
+        transform: translateY(0);
+      }
+
+      .btn-login:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      #login-overlay {
+        position: fixed; inset: 0; background: rgba(255,255,255,0.9); z-index: 9999;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+        backdrop-filter: blur(5px);
+      }
+
+      .ov-spin {
+        width: 48px; height: 48px;
+        border: 4px solid #f0f4f8; border-top-color: #1059A3;
+        border-radius: 50%; animation: spin .8s linear infinite;
+      }
+
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      #loginError {
+        background: #fff5f5;
+        color: #c53030;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 13px;
+        text-align: center;
+        margin-top: 1rem;
+        border: 1px solid #feb2b2;
+        display: none;
+      }
     </style>
 </head>
 <body>
 
-<div class="land-wrap">
-  <div class="land-logo">🔒</div>
-  <div class="land-title">WFH Daily Report</div>
-  <div class="land-sub">ระบบรายงานการทำงานประจำวัน · มทร.ล้านนา ตาก</div>
-
-  <form id="loginForm" style="margin-bottom: 1.5rem;">
-    <div style="margin-bottom: 1rem;">
-      <label style="display: block; font-size: 13px; margin-bottom: 4px; color: var(--color-text-secondary);">อีเมล (Email)</label>
-      <input type="email" id="email" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--color-border-secondary); font-size: 15px;">
-    </div>
-    <div style="margin-bottom: 1.5rem;">
-      <label style="display: block; font-size: 13px; margin-bottom: 4px; color: var(--color-text-secondary);">รหัสผ่าน (Password)</label>
-      <input type="password" id="password" required style="width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--color-border-secondary); font-size: 15px;">
-    </div>
-    <button type="submit" class="land-btn land-btn-emp" style="width: 100%; border: none; cursor: pointer;">
-      <div class="land-btn-title">เข้าสู่ระบบ</div>
-    </button>
-    <div id="loginError" style="color: #e74c3c; font-size: 13px; text-align: center; margin-top: 10px; display: none;"></div>
-  </form>
+<div class="bg-blobs">
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
 </div>
 
-<style>
-  #login-overlay {
-    position: fixed; inset: 0; background: #fff; z-index: 9999;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  }
-  #login-overlay .ov-spin {
-    width: 40px; height: 40px;
-    border: 3px solid #E6F1FB; border-top-color: #1059A3;
-    border-radius: 50%; animation: spin .75s linear infinite;
-  }
-  #login-overlay .ov-text { font-size: 14px; color: #555; }
-</style>
+<div class="land-wrap">
+  <div class="land-logo">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="9" y="3" width="6" height="4" rx="1" stroke="#fff" stroke-width="2.2"/>
+        <path d="M9 12h6M9 16h4" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+  </div>
+  
+  <div class="land-title">WFH Daily Report</div>
+  <div class="land-sub">ระบบรายงานผลการปฏิบัติงานประจำวัน<br>มทร.ล้านนา ตาก</div>
+
+  <form id="loginForm">
+    <div class="form-group">
+      <label class="form-label" for="email">อีเมล (Email)</label>
+      <input type="email" id="email" class="form-input" placeholder="example@rmutl.ac.th" required autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="password">รหัสผ่าน (Password)</label>
+      <input type="password" id="password" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+    </div>
+    <button type="submit" class="btn-login">
+      เข้าสู่ระบบ
+    </button>
+    <div id="loginError"></div>
+  </form>
+</div>
 
 <script>
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -63,18 +230,16 @@
     const email = document.getElementById('email').value;
     const password = document.getElementById('password').value;
     const errorDiv = document.getElementById('loginError');
-    const submitBtn = e.target.querySelector('button[type="submit"]');
+    const submitBtn = e.target.querySelector('.btn-login');
 
     errorDiv.style.display = 'none';
 
-    // แสดง spinner ในปุ่มระหว่าง API call
-    const originalHTML = submitBtn.innerHTML;
+    // UI Feedback
+    const originalText = submitBtn.innerText;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;">'
-      + '<span class="ld-spin" style="width:18px;height:18px;border-width:2px;flex-shrink:0;"></span>'
+    submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:10px;">'
+      + '<span class="ov-spin" style="width:16px;height:16px;border-width:2.5px;"></span>'
       + '<span>กำลังตรวจสอบ...</span></span>';
-
-    let loginSuccess = false;
 
     try {
       const res = await fetch('/api/login', {
@@ -86,42 +251,47 @@
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.detail || 'การเข้าสู่ระบบล้มเหลว');
+        throw new Error(data.detail || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
       }
 
-      // Save token and info
+      // Save credentials
       localStorage.setItem('auth_token', data.token);
       localStorage.setItem('user_role', data.user.role);
       localStorage.setItem('user_level', data.user.level);
 
-      loginSuccess = true;
-
-      // แสดง full-page overlay ก่อน redirect เพื่อให้ผู้ใช้รู้ว่าระบบกำลังโหลด
+      // Success Overlay
       const overlay = document.createElement('div');
       overlay.id = 'login-overlay';
-      overlay.innerHTML = '<div class="ov-spin"></div><div class="ov-text">กำลังเข้าสู่ระบบ...</div>';
+      overlay.innerHTML = '<div class="ov-spin"></div><div style="font-weight:500; color:#102a43">เข้าสู่ระบบสำเร็จ กำลังพาไปที่หน้าแรก...</div>';
       document.body.appendChild(overlay);
 
-      // Redirect based on role/level
+      // Redirect
       const roleStr = (data.user.role || '').toLowerCase();
       const isAdmin = data.user.level > 0 || roleStr.includes('admin') || roleStr.includes('ผู้ดูแลระบบ');
 
       setTimeout(() => {
         window.location.href = isAdmin ? '/static/admin.html' : '/static/employee.html';
-      }, 80);
+      }, 600);
 
     } catch (err) {
+      errorDiv.innerText = err.message;
+      errorDiv.style.display = 'block';
+      
+      // Sweet Alert fallback
       Swal.fire({
         icon: 'error',
-        title: 'เข้าสู่ระบบไม่สำเร็จ',
+        title: 'ไม่สามารถเข้าสู่ระบบได้',
         text: err.message,
         confirmButtonText: 'ตกลง',
-        confirmButtonColor: '#1059A3'
+        confirmButtonColor: '#1059A3',
+        customClass: {
+          popup: 'animated headShake'
+        }
       });
     } finally {
-      if (!loginSuccess) {
+      if (!localStorage.getItem('auth_token')) {
         submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHTML;
+        submitBtn.innerText = originalText;
       }
     }
   });

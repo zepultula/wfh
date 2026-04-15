@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+#? โหลดค่า Configuration จากไฟล์ .env (เช่น API Keys หรือ Database URL)
 load_dotenv()
 
 from fastapi import FastAPI, Header, HTTPException, Depends
@@ -12,15 +13,17 @@ import os
 from contextlib import asynccontextmanager
 from database import get_db
 
+#? กำหนดสิ่งที่จะให้ระบบทำทันทีที่เริ่มรันหรือปิดตัวลง (Lifespan Events)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize Firebase on startup
+    #? เริ่มต้นการเชื่อมต่อ Firebase ทันทีที่ API เริ่มทำงาน
     get_db()
     yield
 
 app = FastAPI(title="WFH Daily Report API", lifespan=lifespan)
 
-# Allow CORS for development
+#? ตั้งค่า CORS (Cross-Origin Resource Sharing) 
+#! ในสภาพแวดล้อมจริง (Production) ควรระบุ Origins ที่ชัดเจนแทน "*" เพื่อความปลอดภัย
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,13 +32,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#? API Endpoint สำหรับการเข้าสู่ระบบ (Login)
 @app.post("/api/login")
 def login(req: LoginRequest):
+    #? ดึงอินสแตนซ์ของฐานข้อมูล Firestore
     db = get_db()
     users_ref = db.collection("users")
     doc = users_ref.document(req.email).get()
 
     if not doc.exists:
+        #! หากไม่พบ Email ในระบบ จะส่ง Error 401 กลับไป (ไม่ควรบอกว่าอีเมลผิดหรือรหัสผ่านผิดเพื่อความปลอดภัย)
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     user_data = doc.to_dict()
@@ -58,6 +64,7 @@ def login(req: LoginRequest):
         "user": user_data
     }
 
+#? API สำหรับดึงข้อมูลของผู้ใช้งานที่ Login อยู่ ณ ปัจจุบัน
 @app.get("/api/me", response_model=UserInfo)
 def me(current_user: dict = Depends(get_current_user)):
     """Return current user info from JWT token"""
@@ -71,6 +78,7 @@ def me(current_user: dict = Depends(get_current_user)):
         "level": current_user.get("level", 0),
     }
 
+#? API สำหรับดึงรายชื่อผู้ใช้งาน (คัดกรองตามสิทธิ์ Role-Based Access Control)
 @app.get("/api/users")
 def get_users(current_user: dict = Depends(get_current_user)):
     """Return list of users the caller is authorized to see"""
@@ -98,6 +106,7 @@ def get_users(current_user: dict = Depends(get_current_user)):
             if u_pid != personal_id:
                 continue
         elif 1 <= level <= 3:
+            #? พนักงานระดับ Supervisor จะเห็นรายงานของลูกน้องตามที่ระบุใน Evaluations
             if u_pid not in allowed_target_ids and u_pid != personal_id:
                 continue
         else:
@@ -115,8 +124,10 @@ def get_users(current_user: dict = Depends(get_current_user)):
             "ignore": u.get("ignore", 0),
         })
 
+    #todo ปรับปรุงประสิทธิภาพการดึงข้อมูลเพื่อให้รองรับจำนวน User ที่เพิ่มขึ้นในอนาคต
     return result
 
+#? นำเข้า API Routes แยกตาม Module (Reports และ Admin)
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 
@@ -127,6 +138,7 @@ os.makedirs("static/js", exist_ok=True)
 # Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+#? ให้หน้าแรก Redirect ไปยังไฟล์ HTML ของ Frontend
 @app.get("/")
 def index():
     return RedirectResponse(url="/static/index.html")

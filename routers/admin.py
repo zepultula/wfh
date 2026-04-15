@@ -8,9 +8,12 @@ import re
 import calendar
 from datetime import date as date_mod
 
+#? กำหนด Router สำหรับระบบจัดการของ Admin
 router = APIRouter()
 
 
+#? ตรวจสอบสิทธิ์ว่าเป็น Super Admin (Level 9 หรือ Role เป็น Admin) หรือไม่
+#! หาก Token ไม่ถูกต้องหรือไม่มีสิทธิ์ จะส่ง Error 401 หรือ 403 กลับไปทันที
 def _require_super_admin(authorization: str):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
@@ -23,6 +26,7 @@ def _require_super_admin(authorization: str):
     return get_db()
 
 
+#? ตรวจสอบสิทธิ์ว่ามีสิทธิ์ระดับ Admin หรือ Supervisor (Level >= 1) หรือไม่
 def _require_any_admin(authorization: str):
     """Authenticate any admin-level user (level >= 1 or role contains 'admin').
     Returns (db, user_data) tuple."""
@@ -37,6 +41,8 @@ def _require_any_admin(authorization: str):
     return get_db(), payload
 
 
+#? คำนวณรายชื่อ User ID ที่ Admin/Supervisor คนนั้นสามารถมองเห็นได้
+#! ระบบจะคืนค่า None สำหรับ Super Admin หมายความว่ามองเห็นทุกคน
 def _get_visible_user_ids(db, user_data):
     """Return set of personal_ids this user can see.
     Returns None for super admin (meaning 'all users').
@@ -49,6 +55,7 @@ def _get_visible_user_ids(db, user_data):
         return None  # None = see all
     allowed = {personal_id}  # always include self
     if 1 <= level <= 3:
+        #? ค้นหาลูกน้องที่อยู่ในสายการบังคับบัญชาจาก Collection 'evaluations'
         for e in db.collection("evaluations") \
                     .where("evaluator_ids", "array_contains", personal_id) \
                     .stream():
@@ -56,6 +63,7 @@ def _get_visible_user_ids(db, user_data):
     return allowed
 
 
+#? โครงสร้างข้อมูลสิ่งที่ต้องส่งมาเมื่อต้องการ "สร้างพนักงานใหม่" (Required Fields)
 class UserCreate(BaseModel):
     personal_id: str
     firstname: str
@@ -70,6 +78,7 @@ class UserCreate(BaseModel):
     ignore: int = 0
 
 
+#? โครงสร้างข้อมูลเมื่อต้องการ "แก้ไขพนักงาน" (Optional Fields — เลือกส่งเฉพาะฟิลด์ที่ต้องการแก้)
 class UserUpdate(BaseModel):
     personal_id: Optional[str] = None
     firstname: Optional[str] = None
@@ -83,6 +92,7 @@ class UserUpdate(BaseModel):
     ignore: Optional[int] = None
 
 
+#? ดึงรายชื่อพนักงานทั้งหมดในระบบ (เฉพาะ Super Admin)
 @router.get("/users")
 def list_all_users(authorization: str = Header(None)):
     db = _require_super_admin(authorization)
@@ -95,6 +105,8 @@ def list_all_users(authorization: str = Header(None)):
     return result
 
 
+#? สร้างบัญชีผู้ใช้งานใหม่
+#! ต้องตรวจสอบซ้ำว่า Email ซ้ำในระบบหรือไม่ก่อนสร้าง
 @router.post("/users", status_code=201)
 def create_user(user: UserCreate, authorization: str = Header(None)):
     db = _require_super_admin(authorization)
@@ -133,6 +145,7 @@ class EvaluationUpdate(BaseModel):
     evaluator_ids: List[str]
 
 
+#? ดึงข้อมูลสายการบังคับบัญชา (ใครประเมินใคร)
 @router.get("/evaluations")
 def list_evaluations(authorization: str = Header(None)):
     """Get all users with their evaluators (join from evaluations collection)"""
@@ -229,6 +242,7 @@ def migrate_evaluator_ids(authorization: str = Header(None)):
 
 # ── Monthly Stats ────────────────────────────────────────────────────────────
 
+#? ฟังก์ชันคำนวณสถิติรายเดือน (ใช้สำหรับการแสดงผลบนเว็บและ Export Excel)
 def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
     """Compute per-user monthly statistics. month = 'YYYY-MM'.
     If allowed_user_ids is a set, only include those users.
@@ -238,6 +252,7 @@ def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
 
     year, mon = int(month[:4]), int(month[5:7])
     _, num_days = calendar.monthrange(year, mon)
+    #? คำนวณจำนวนวันทำงาน (จันทร์-ศุกร์) ของเดือนนั้นๆ
     weekdays = sum(1 for d in range(1, num_days + 1) if date_mod(year, mon, d).weekday() < 5)
 
     # Fetch active users (filtered by allowed_user_ids if provided)
@@ -320,6 +335,7 @@ def get_stats(month: str, authorization: str = Header(None)):
     return _compute_monthly_stats(db, month, allowed)
 
 
+#? Export สถิติรายงานตัวประจำเดือนเป็นไฟล์ Excel (.xlsx)
 @router.get("/stats/export")
 def export_stats(month: str, authorization: str = Header(None)):
     """Export สถิติรายเดือนเป็นไฟล์ Excel (.xlsx)
@@ -356,6 +372,7 @@ def export_stats(month: str, authorization: str = Header(None)):
     red_fill = PatternFill("solid", fgColor="F8D7DA")
     alt_fill = PatternFill("solid", fgColor="F9FAFB")
 
+    #todo ย้าย Style การจัดไฟล์ Excel ไปไว้ใน Utility แยกต่างหากเพื่อลดความยาวโค้ด
     hdr_font = Font(bold=True, color="FFFFFF", size=10)
     dept_font = Font(bold=True, color="1A3A6B", size=10)
     body_font = Font(size=10)
@@ -465,6 +482,7 @@ def export_stats(month: str, authorization: str = Header(None)):
 
 # ── Daily Report Export ──────────────────────────────────────────────────────
 
+#? Export รายละเอียดรายงานรายวันของทุกคน (หรือลูกน้อง) เป็นไฟล์ Excel
 @router.get("/reports/export")
 def export_daily_reports(date: str, authorization: str = Header(None)):
     """Export รายงานประจำวันเป็นไฟล์ Excel (.xlsx) — admin level 1+, กรองตามสิทธิ์

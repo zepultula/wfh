@@ -42,6 +42,16 @@
 - **Excel ละเอียด:** ส่งออกรายงานประจำวันเป็น `.xlsx` พร้อมรายการงาน สถานะ ปัญหา คอมเมนต์ และรายชื่อผู้ยังไม่ส่ง
 - **Loading Animation:** ปุ่มดาวน์โหลดแสดง Spinner และ Disabled ระหว่างรอข้อมูล
 
+### 7. UI/UX Visual Polish (v2.7.0)
+- **Login Loading UX:** ปุ่มเข้าสู่ระบบแสดง Spinner ระหว่าง API call + Full-page overlay ก่อน redirect
+- **Submit Loading:** ปุ่มส่งรายงานแสดง Spinner ระหว่าง API call
+- **Work Mode Colors:** ปุ่มรูปแบบทำงาน WFH (น้ำเงิน) / On-site (เขียว) / Hybrid (ม่วง) — สีตรงกันทุกหน้า
+- **Trash Icon:** ปุ่มลบงานเปลี่ยนเป็น SVG trash-bin สีแดงที่ชัดเจนกว่า "×"
+- **Admin Navbar:** ปุ่ม Navigation ออกแบบใหม่ — pill-shaped พร้อม SVG icon และสีเฉพาะแต่ละฟังก์ชัน
+- **Back Button:** ปุ่ม "กลับ Dashboard" สีอำพันชัดเจน พร้อม SVG arrow icon
+- **Excel Buttons:** SVG table grid icon + gradient สีเขียว
+- **Smooth Animations:** Page transition fade+slide (.22s) และ Collapsible table max-height transition (.28s) ที่ smooth ด้วย `requestAnimationFrame`
+
 ---
 
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
@@ -147,6 +157,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 2.6.0
+- **เวอร์ชัน:** 2.7.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

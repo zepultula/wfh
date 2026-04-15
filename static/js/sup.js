@@ -1,167 +1,232 @@
+//? ตรวจสอบสิทธิ์เบื้องต้นจาก LocalStorage เพื่อความรวดเร็วในการแสดงผล UI
 const userLevel = parseInt(localStorage.getItem('user_level') || '0', 10);
 const userRole = (localStorage.getItem('user_role') || '').toLowerCase();
+//? ตรวจสอบว่าเป็น Super Admin หรือไม่ (Level > 0 หรือมี Role เป็น Admin)
 const isSuperAdmin = userLevel > 0 || userRole.includes('admin') || userRole.includes('ผู้ดูแลระบบ');
 
+//? หากไม่ใช่กลุ่มแอดมิน ให้ดีดกลับไปหน้าพนักงานทันที
 if (!isSuperAdmin) {
   window.location.replace('/static/employee.html');
 }
 
 const thM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const thD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
-let currentReportId = null;
-let currentUser = null;
+let currentReportId = null; //? เก็บ ID รายงานที่กำลังเปิดดูรายละเอียด
+let currentUser = null;     //? เก็บข้อมูลผู้ใช้ที่กำลัง Login อยู่ปัจจุบัน (สำหรับเรียกใช้ใน API)
 
+//? ฟังก์ชันเริ่มต้น: ดึงข้อมูลตัวตนจาก API เพื่อยืนยันสิทธิ์และปรับรูปแบบเมนูตามระดับ Level
 async function initUser() {
   try {
     const res = await fetch('/api/me');
     if (!res.ok) throw new Error('Unauth');
     currentUser = await res.json();
+    
+    //? แสดงอักษรย่อและข้อมูลส่วนตัวในแถบเมนู
     document.getElementById('nb-av').textContent = getInitials(currentUser.name);
     document.getElementById('nb-name').textContent = currentUser.name;
     document.getElementById('nb-role').textContent = currentUser.role;
-    // แสดงปุ่มจัดการผู้ใช้และสายบังคับบัญชาสำหรับ super admin เท่านั้น
+
+    //? จัดการการมองเห็นเมนูจัดการ (Management) ตามสิทธิ์
+    //? Level 9 หรือ 'admin' จะเห็นเมนูจัดการผู้ใช้และสายบังคับบัญชา
     if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
       const btn = document.getElementById('btn-users-mgmt');
       if (btn) btn.style.display = '';
       const btnEv = document.getElementById('btn-evals-mgmt');
       if (btnEv) btnEv.style.display = '';
     }
-    // แสดงปุ่มสถิติสำหรับ admin ทุก level (level 1+)
+    //? เฉพาะกลุ่มหัวหน้างาน/ผู้บริหาร (Level 1 ขึ้นไป) จะเห็นเมนูสถิติ
     const btnSt = document.getElementById('btn-stats-mgmt');
     if (btnSt) btnSt.style.display = '';
   } catch(e) {
+    //? หากไม่มีสิทธิ์หรือ Session หมดอายุ ให้ส่งไปหน้า Login
     window.location.replace('/static/index.html');
   }
 }
 initUser();
 
+//? ฟังก์ชันสำหรับออกจากระบบ: ล้างข้อมูลสิทธิ์ใน LocalStorage และพากลับไปหน้า Login
 window.doLogout = function() {
+    //! สำคัญ: ต้องล้างทั้ง Token และข้อมูล Role/Level เพื่อป้องกันการแสดงผลเมนูตกค้าง
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_level');
     window.location.replace('/static/index.html');
 };
 
+//? ฟังก์ชันแสดงนาฬิกาและวันที่ปัจจุบันแบบไทย (พ.ศ.) ในหน้าจอ
 function tick(){
   const n=new Date();
   const d=`${n.getDate()} ${thM[n.getMonth()]} ${n.getFullYear()+543}`;
   const t=`${String(n.getHours()).padStart(2,'0')}:${String(n.getMinutes()).padStart(2,'0')}:${String(n.getSeconds()).padStart(2,'0')}`;
   const full=`วัน${thD[n.getDay()]}ที่ ${d}`;
-  const el=document.getElementById('s-ts'); if(el) el.textContent=`${full} · ${t}`;
+  const el=document.getElementById('s-ts'); 
+  //? อัปเดตเนื้อหาใน Element ทุกๆ 1 วินาที
+  if(el) el.textContent=`${full} · ${t}`;
 }
-tick(); setInterval(tick,1000);
+tick(); //? รันทันทีครั้งแรกเมื่อโหลดหน้า
+setInterval(tick,1000); //? ตั้งเวลาให้รันซ้ำทุกวินาที
 
-/* ── Date helpers ── */
+/* ── ฟังก์ชันช่วยจัดการเกี่ยวกับวันที่ (Date helpers) ── */
+
+//? ดึงวันที่ปัจจุบันในรูปแบบ YYYY-MM-DD เพื่อใช้เป็นค่าเริ่มต้นใน Input และ API
 function getTodayStr() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
 }
 
+//? แปลงวันที่จากรูปแบบ ISO (YYYY-MM-DD) เป็นภาษาไทยแบบเต็ม (เช่น วันจันทร์ที่ 15 เม.ย. 2569)
 function formatDateThai(dateStr) {
+  //? สร้าง Date Object โดยระบุเวลา 00:00:00 เพื่อป้องกันปัญหาเรื่อง Timezone กระโดดข้ามวัน
   const d = new Date(dateStr + 'T00:00:00');
   return `วัน${thD[d.getDay()]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
 }
 
+//? สกัด (Extract) เฉพาะส่วนวันที่ออกจาก Report ID (รูปแบบ ID คือ "UserEmail_YYYY-MM-DD")
 function getReportDate(reportId) {
   const m = reportId && reportId.match(/(\d{4}-\d{2}-\d{2})$/);
   return m ? m[1] : null;
 }
 
+//? สกัด (Extract) เฉพาะ User ID (Email) ออกจาก Report ID
 function getReportUserId(reportId) {
   const d = getReportDate(reportId);
+  //? ตัดส่วนวันที่และขีดล่าง (_) ออกจากตอนท้ายสตริง
   return d ? reportId.slice(0, reportId.length - d.length - 1) : reportId;
 }
 
-/* ── Set today's date in the date filter ── */
+/* ── กำหนดค่าวันที่เริ่มต้นในปฏิทิน (Default date setup) ── */
 (function setDefaultDate(){
   const today = getTodayStr();
   const el = document.getElementById('s-date-filter');
   if (el) {
-    el.value = today;
-    el.max = today;
+    el.value = today; //? ตั้งค่าเริ่มต้นเป็นวันนี้
+    el.max = today;   //? //! ป้องกันไม่ให้ผู้ใช้เลือกวันที่ในอนาคต
+    
+    //? เมื่อมีการเปลี่ยนวันที่ผ่าน Input ให้โหลดแดชบอร์ดใหม่ทันที
     el.addEventListener('change', () => {
       const nextBtn = document.getElementById('admin-btn-next');
+      //? หากเลือกถึงวันนี้แล้ว ให้ปิดปุ่ม "ถัดไป" เพราะไม่มีข้อมูลอนาคต
       if (nextBtn) nextBtn.disabled = el.value >= today;
       loadDashboard();
     });
   }
   const nextBtn = document.getElementById('admin-btn-next');
-  if (nextBtn) nextBtn.disabled = true;
+  if (nextBtn) nextBtn.disabled = true; //? เริ่มต้นที่วันปัจจุบัน ดังนั้นปุ่ม "ถัดไป" ต้องถูกปิดไว้
 })();
 
-/* ── Admin date navigation ── */
+/* ── ระบบนำทางวันที่ของแอดมิน (Admin date navigation) ── */
+//? ฟังก์ชันสำหรับเปลี่ยนวันที่ดูรายงานในหน้าแดชบอร์ดสรุปภาพรวม (ใช้ปุ่ม ← →)
 function navigateAdminDate(delta) {
   const today = getTodayStr();
   const dateEl = document.getElementById('s-date-filter');
   if (!dateEl) return;
   const base = dateEl.value || today;
   const d = new Date(base + 'T00:00:00');
-  d.setDate(d.getDate() + delta);
+  d.setDate(d.getDate() + delta); //? เพิ่ม/ลด วันที่ตาม delta
+  
   const newDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  
+  //? ป้องกันการดูรายงานในอนาคต (ซึ่งยังไม่มีข้อมูล)
   if (newDate > today) return;
+  
+  //? อัปเดตค่าในหน้าจอและโหลดข้อมูลแดชบอร์ดใหม่
   dateEl.value = newDate;
   const nextBtn = document.getElementById('admin-btn-next');
-  if (nextBtn) nextBtn.disabled = newDate >= today;
+  if (nextBtn) nextBtn.disabled = newDate >= today; //? ปิดปุ่ม "ไปข้างหน้า" หากอยู่ที่วันปัจจุบัน
   loadDashboard();
 }
 
-/* ── Employee date navigation (within detail view) ── */
+/* ── ระบบนำทางวันที่ในหน้าละเอียด (Employee date navigation within detail view) ── */
+//? ใช้สำหรับเปลี่ยนวันที่ดูรายงานของพนักงาน "คนเดียว" เมื่อกดปุ่ม ← → ในหน้าจอรายละเอียด
 function navigateEmployeeReport(delta) {
   if (!currentReportId) return;
   const today = getTodayStr();
+  //? แยกวันที่ออกจาก ID (เช่น แยก '2026-04-15' ออกจาก 'employee1_2026-04-15')
   const currentDate = getReportDate(currentReportId);
   const userId = getReportUserId(currentReportId);
+  
   if (!currentDate || !userId) return;
+  
   const d = new Date(currentDate + 'T00:00:00');
-  d.setDate(d.getDate() + delta);
+  d.setDate(d.getDate() + delta); //? ปรับวันที่
   const newDate = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  
+  //? ป้องกันไม่ให้ดูรายงานล่วงหน้า
   if (newDate > today) return;
+  
+  //? โหลดข้อมูลรายละเอียดรายงานของวันที่ใหม่
   loadReportDetail(`${userId}_${newDate}`);
 }
 
-/* ── Dashboard ── */
+/* ── แดชบอร์ดสรุปพนักงาน (Dashboard) ── */
+//? ฟังก์ชันหลักในการดึงข้อมูลรายงานและรายชื่อพนักงานทั้งหมดเพื่อนำมาพล็อตลงตารางสรุป
 async function loadDashboard() {
   const sRows = document.getElementById('s-rows');
+  //? แสดงหน้า Loading ก่อนเริ่มดึงข้อมูล
   if (sRows) sRows.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
   try {
     const dateEl = document.getElementById('s-date-filter');
     const dateParam = dateEl ? `?date=${dateEl.value}` : '';
+    
+    //? เรียกใช้ APIs พร้อมกัน (Parallel) เพื่อความรวดเร็ว
+    //? 1. ดึงรายงานที่พนักงานส่งมาแล้วในวันที่เลือก
+    //? 2. ดึงรายชื่อผู้ใช้ทั้งหมด เพื่อนำมาเปรียบเทียบว่าใคร "ยังไม่ได้ส่ง"
     const [reportsRes, usersRes] = await Promise.all([
       fetch(`/api/reports${dateParam}`),
       fetch('/api/users')
     ]);
+    
     const reports = reportsRes.ok ? await reportsRes.json() : [];
     const allFetchedUsers = usersRes.ok ? await usersRes.json() : [];
-    // กรองเฉพาะ users ที่ ignore=0 (ไม่นับคนที่ถูกยกเว้นการตรวจสอบ)
+    
+    //? กรองเฉพาะพนักงานที่ต้องตรวจสอบ (ignore=0) 
+    //? พนักงานที่ถูกตั้งค่า ignore=1 (เช่น ผู้บริหารระดับสูงหรือตำแหน่งที่ไม่ต้องส่งรายงาน) จะไม่นำมาแสดง
     const users = allFetchedUsers.filter(u => (u.ignore ?? 0) === 0);
+    
+    //? ส่งต่อข้อมูลไปให้ฟังก์ชันวาดตาราง (Rendering)
     renderReports(reports, users);
   } catch(e) {
-    console.error(e);
+    console.error('Dashboard Error:', e);
   }
 }
 
+//? รันโหลดแดชบอร์ดครั้งแรกเมื่อเข้าหน้าเว็บ
 loadDashboard();
 
+//? จัดการเหตุการณ์การคลิกที่ปุ่ม Filter (เช่น ดูเฉพาะผู้ที่มีปัญหา, ดูเฉพาะ WFH)
 document.getElementById('s-filters').addEventListener('click', e => {
   const btn = e.target.closest('.fb'); if (!btn) return;
+  
+  //? เปลี่ยนสถานะ Active ของปุ่มที่ถูกเลือก
   document.querySelectorAll('.fb').forEach(b => b.classList.remove('on'));
   btn.classList.add('on');
-  const f = btn.dataset.f;
+  
+  const f = btn.dataset.f; //? ค่า Filter (เช่น 'all', 'prob', 'wfh')
+  
+  //? ซ่อน/แสดง แถวพนักงานในตารางตามเงื่อนไขที่เลือก
   document.querySelectorAll('#s-rows .rrow').forEach(r => {
+    //? ตรวจสอบว่า Attribute data-f ของแถวมีค่าตรงกับ Filter หรือไม่
     r.style.display = (f === 'all' || r.dataset.f.includes(f)) ? '' : 'none';
   });
 });
 
-/* ── Detail view show/hide ── */
+/* ── การแสดงผลหน้าจอรายละเอียด (Detail view show/hide logic) ── */
+
+//? ฟังก์ชันแสดงหน้าเจาะลึกรายงานรายบทสรุป (Detail Page)
 function showDetail(reportId){
+  //? ซ่อนหน้าหลัก (List) และสถิติ
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
+  
   const el = document.getElementById('sup-detail');
   el.style.display = 'block';
-  _animateIn(el);
+  _animateIn(el); //? เล่นแอนิเมชัน Fade-in
+  
+  //? หากมี ID รายงานมาให้โหลดข้อมูลทันที
   if (reportId) loadReportDetail(reportId);
 }
 
+//? ฟังก์ชันกลับสู่หน้าหลัก
 function hideDetail(){
   document.getElementById('sup-detail').style.display = 'none';
   const el = document.getElementById('sup-list');
@@ -169,15 +234,18 @@ function hideDetail(){
   _animateIn(el);
 }
 
-/* ── Load report detail ── */
+/* ── โหลดรายละเอียดรายงาน (Load report detail) ── */
+//? ดึงข้อมูลรายงานเชิงลึกรายบุคคลตาม ID (user_id_date)
 async function loadReportDetail(reportId) {
-  currentReportId = reportId;
+  currentReportId = reportId; //? จดจำ ID ไว้สำหรับการนำทางและคอมเมนท์
   try {
     const res = await fetch(`/api/reports/${reportId}`);
     if (res.ok) {
       const report = await res.json();
+      //? เรนเดอร์ข้อมูลรายงานที่พนักงานส่งมา
       renderReportDetail(report);
     } else if (res.status === 404) {
+      //? หากสถานะเป็น 404 แสดงว่ายังไม่มีการส่งรายงานในวันนั้น
       renderEmptyReportDetail(reportId);
     }
   } catch(e) {
@@ -185,16 +253,20 @@ async function loadReportDetail(reportId) {
   }
 }
 
-/* ── Date nav HTML helper ── */
+/* ── ตัวช่วยสร้าง HTML แถบเลื่อนวันที่ (Date nav HTML helper) ── */
+//? ฟังก์ชันสำหรับสร้างแถบปุ่มนำทางวันที่ (← วันก่อน | วันที่โชว์ | วันถัดไป →) ในหน้ารายละเอียด
 function buildDetailDateNav(reportId) {
   const today = getTodayStr();
   const rDate = getReportDate(reportId);
   const isToday = rDate === today;
   const displayDate = rDate ? formatDateThai(rDate) : '—';
+  
+  //? ตรวจสอบและแสดงป้ายกำกับ (Label) ว่าเป็น "ย้อนหลัง" หรือ "วันนี้"
   const isHistoric = rDate && rDate < today;
   const historyLabel = isHistoric
     ? `<span style="font-size:10px;background:#FFF8E1;color:#5D4037;border:0.5px solid #FFCA28;border-radius:4px;padding:2px 6px;margin-left:6px">ย้อนหลัง</span>`
     : `<span style="font-size:10px;background:#E1F5EE;color:#085041;border:0.5px solid #A5D6C1;border-radius:4px;padding:2px 6px;margin-left:6px">วันนี้</span>`;
+    
   return `
     <div class="date-nav" style="margin-bottom:.875rem">
       <button class="date-nav-btn" onclick="navigateEmployeeReport(-1)">← วันก่อน</button>
@@ -282,14 +354,18 @@ function renderEmptyReportDetail(reportId) {
 }
 
 /* ── Render report list ── */
+/* ── เรนเดอร์ตารางรายชื่อรายงาน (Render report list) ── */
+//? ฟังก์ชันที่ประมวลผลข้อมูลรายงานเทียบกับรายชื่อพนักงาน เพื่อแสดงผลสรุปว่า "ใครส่งแล้ว" และ "ใครยังไม่ส่ง"
 function renderReports(reports, users = []) {
   const sRows = document.getElementById('s-rows');
   if (!sRows) return;
   sRows.innerHTML = '';
 
+  //? แยกแยะพนักงานที่ส่งแล้ว และที่ยังค้างคาจากรายชื่อทั้งหมด
   const submittedIds = new Set(reports.map(r => r.user_id));
   const unsentUsers = users.filter(u => !submittedIds.has(u.user_id));
 
+  //? ปรับปรุงตัวเลข KPI ด้านบนแดชบอร์ด
   const total = users.length || reports.length;
   const withProbs = reports.filter(r => r.problems && r.problems !== '-').length;
   document.getElementById('stat-total').textContent = total;
@@ -297,6 +373,7 @@ function renderReports(reports, users = []) {
   document.getElementById('stat-unsent').textContent = unsentUsers.length;
   document.getElementById('stat-prob').textContent = withProbs;
 
+  //? จัดทำเมนูรายการย่อสำหรับปัญหาที่ต้องติดตามด่วน
   const probsList = document.getElementById('s-probs-list');
   if (probsList) {
     probsList.innerHTML = '';
@@ -325,26 +402,39 @@ function renderReports(reports, users = []) {
     }
   }
 
+  //? กรณีไม่มีข้อมูลพนักงานเลย (ฐานข้อมูลว่าง)
   if (reports.length === 0 && unsentUsers.length === 0) {
     sRows.innerHTML = '<div style="padding:1rem;text-align:center;color:var(--color-text-secondary)">ไม่มีรายงาน</div>';
     return;
   }
 
-  /* ── ฟังก์ชันสร้าง HTML แถวรายงานหนึ่งแถว ── */
+  /* ── ฟังก์ชันตัวช่วย: สร้างโครงสร้าง HTML สำหรับ 1 แถวพนักงาน (Report Row) ── */
   function buildReportRow(report, idx) {
     const initials = getInitials(report.name);
-    const avatarColor = idx % 4 === 0 ? 'av-teal' : idx % 4 === 1 ? 'av-purple' : idx % 4 === 2 ? 'av-coral' : 'av-amber';
+    //? วนลูปใช้สี Avatar ให้หลากหลายเพื่อความสวยงาม
+    const avatarColor = avatarCycleColors[idx % avatarCycleColors.length];
+    
+    //? สร้างป้ายกำกับรูปแบบการทำงาน (Badge)
     const workModeBadge = report.work_mode === 'wfh' ? '<span class="bdg bdg-blue">WFH</span>' :
                          report.work_mode === 'hybrid' ? '<span class="bdg bdg-indigo">Hybrid</span>' :
                          '<span class="bdg bdg-green">On-site</span>';
+                         
+    //? สร้างป้ายกำกับรายการงาน (Task Badges)
     const taskBadges = report.tasks && report.tasks.length > 0
       ? report.tasks.map(t => `<span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)} ${t.title}</span>`).join('')
       : '<span style="color:var(--color-text-secondary);font-size:11px">ไม่มีงาน</span>';
+      
+    //? แสดงปัญหา (ถ้ามี)
     const problemHTML = report.problems && report.problems !== '-'
       ? `<div class="rproblem"><div class="pdot"></div>${report.problems}</div>` : '';
+      
+    //? กำหนดสีแถบความคืบหน้า (Progress Bar) ตามช่วงเปอร์เซ็นต์
     const progressColor   = report.progress >= 80 ? '#27500A' : report.progress >= 40 ? '#633806' : '#8B4513';
     const progressBgColor = report.progress >= 80 ? '#639922' : report.progress >= 40 ? '#EF9F27' : '#E24B4A';
+    
+    //? ข้อมูล Attributes สำหรับใช้ในการ Filter หน้าจอ (ส่งแล้ว, มีปัญหา, WFH)
     const dataF = `${report.work_mode === 'wfh' ? 'wfh ' : ''}${!report.problems || report.problems === '-' ? 'sent' : 'sent prob'}`;
+    
     return `
       <div class="rrow" data-f="${dataF}">
         <div class="av av-sm ${avatarColor}">${initials}</div>
@@ -362,9 +452,9 @@ function renderReports(reports, users = []) {
       </div>`;
   }
 
-  /* ── แสดงรายการรายงานที่ส่งแล้ว ── */
+  /* ── ส่วนแสดงรายงานที่ส่งแล้ว ── */
   if (isSuperAdmin && reports.length > 0) {
-    /* จัดกลุ่มตาม department เมื่อเป็น super admin */
+    //? สำหรับ Super Admin: จัดกลุ่มพนักงานแยกตามหน่วยงาน (Department)
     const deptReports = {};
     reports.forEach(r => {
       const dept = r.department || 'ไม่ระบุหน่วยงาน';
@@ -374,7 +464,7 @@ function renderReports(reports, users = []) {
 
     let globalIdx = 0;
     Object.entries(deptReports).forEach(([dept, members]) => {
-      /* คำนวณ data-f ของ header ให้ครอบคลุม filter ที่สมาชิกมี */
+      //? สร้าง Header ของกลุ่มหน่วยงาน
       const hasWfh  = members.some(r => r.work_mode === 'wfh');
       const hasProb = members.some(r => r.problems && r.problems !== '-');
       const headerF = `sent${hasWfh ? ' wfh' : ''}${hasProb ? ' prob' : ''}`;
@@ -394,13 +484,13 @@ function renderReports(reports, users = []) {
       });
     });
   } else {
-    /* แสดงแบบ flat สำหรับหัวหน้างานทั่วไป */
+    //? สำหรับหัวหน้างานระดับ 1-3: แสดงรายการเรียงลำดับแบบปกติ (ตามสายบังคับบัญชา)
     reports.forEach((report, idx) => {
       sRows.insertAdjacentHTML('beforeend', buildReportRow(report, idx));
     });
   }
 
-  /* ── แถวพนักงานที่ยังไม่ส่ง (จัดกลุ่มตาม department) ── */
+  /* ── ส่วนแสดงพนักงานที่ค้างส่ง (Unsunt Users) ── */
   if (unsentUsers.length > 0) {
     const avatarColors = ['av-teal', 'av-purple', 'av-coral', 'av-amber'];
     const deptGroups = {};
@@ -412,6 +502,7 @@ function renderReports(reports, users = []) {
 
     let globalIdx = reports.length;
     Object.entries(deptGroups).forEach(([dept, members]) => {
+      //? สร้าง Header กลุ่มที่ยังไม่ส่ง แยกตามหน่วยงาน
       sRows.insertAdjacentHTML('beforeend', `
         <div class="rrow" data-f="unsent" style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;cursor:default;pointer-events:none;margin-top:4px">
           <div style="font-size:11px;font-weight:700;color:#5D4A2E;letter-spacing:.05em">${dept}</div>
@@ -425,6 +516,7 @@ function renderReports(reports, users = []) {
         const initials = getInitials(u.name);
         const avatarColor = avatarColors[globalIdx % 4];
         globalIdx++;
+        //? แสดงแถวแบบจางลง (Opacity 0.65) เพื่อให้เห็นความแตกต่างกับคนที่ส่งแล้ว
         sRows.insertAdjacentHTML('beforeend', `
           <div class="rrow" data-f="unsent" style="opacity:.65;padding-left:24px">
             <div class="av av-sm ${avatarColor}" style="filter:grayscale(.5)">${initials}</div>
@@ -442,44 +534,61 @@ function renderReports(reports, users = []) {
   }
 }
 
-/* ── Render comments ── */
+/* ── ส่วนแสดงความคิดเห็น (Comments display logic) ── */
+//? ฟังก์ชันสำหรับพ่น (Render) ข้อความสื่อสารลงใน Thread ใต้รายงาน
 function renderComments(comments, containerId) {
   const thread = document.getElementById(containerId);
   if (!thread) return;
   thread.innerHTML = '';
+  
   if (comments && comments.length > 0) {
     comments.forEach(c => {
-      const isSrv = c.author_role.includes('หัวหน้า') || c.author_role.includes('แอดมิน');
+      //? ตรวจสอบว่าใครเป็นคนพูด (พนักงาน หรือ หัวหน้า/แอดมิน) เพื่อจัดสไตล์ให้แตกต่างกัน
+      const isSrv = c.author_role.includes('หัวหน้า') || c.author_role.includes('แอดมิน') || c.author_role.includes('ผู้ดูแล');
       const b = document.createElement('div');
       b.className = 'cbubble';
+      
+      //? จับคู่ Tag กับสี Badge
       const tagColorMap = { 'ต้องแก้ไข': 'bdg-red', 'ดีมาก': 'bdg-green', 'ติดตามด่วน': 'bdg-amber', 'รับทราบ': 'bdg-gray' };
       const tagClass = c.tag ? (tagColorMap[c.tag] || 'bdg-blue') : '';
-      const tag = c.tag ? `<span class="bdg ${tagClass}" style="font-size:10px">${c.tag}</span>` : '';
+      const tagHTML = c.tag ? `<span class="bdg ${tagClass}" style="font-size:10px">${c.tag}</span>` : '';
+      
       b.innerHTML = `
         <div class="av ${c.avatar_color || 'av-gray'} av-sm">${c.author_initials || '??'}</div>
         <div>
-          <div class="bname">${c.author_name} <span>${c.timestamp} · ${c.author_role}</span> ${tag}</div>
+          <div class="bname">${c.author_name} <span>${c.timestamp} · ${c.author_role}</span> ${tagHTML}</div>
           <div class="btext ${isSrv ? 'sv' : ''}">${c.message}</div>
         </div>
       `;
       thread.appendChild(b);
     });
   } else {
+    //? //! กรณีที่ยังไม่มีใครตอบโต้กันในรายงานนี้
     thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ยังไม่มีการสื่อสาร</div>';
   }
 }
 
-/* ── Tag selection ── */
-let selTag = '';
+/* ── การเลือก Tag (Tag selection logic) ── */
+let selTag = ''; //? ตัวแปรเก็บค่า Tag ที่เลือกปัจจุบัน (สมมติว่า 'ต้องแก้ไข')
 function stag(el){
+  //? รีเซ็ตสไตล์ของปุ่ม Tag อื่นๆ
   document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
-  if (selTag !== el.textContent) { el.classList.add('on'); selTag = el.textContent; }
-  else { selTag = ''; }
+  
+  //? หากกดซ้ำตัวเดิม ให้ยกเลิกการเลือก (Deselect)
+  if (selTag !== el.textContent) { 
+    el.classList.add('on'); 
+    selTag = el.textContent; 
+  } else { 
+    selTag = ''; 
+  }
 }
 
 /* ── Send comment ── */
+/* ── ส่งคอมเมนท์แชท (Send comment) ── */
+//? ฟังก์ชันสำหรับส่งข้อความตอบกลับหรือคำสั่งการจากหัวหน้างานไปยังรายงานของลูกน้อง
 async function sendCmt() {
   const msg = document.getElementById('s-msg').value.trim();
+  //? ป้องกันการส่งข้อความว่าง หรือส่งในกรณีที่ไม่ได้เปิดรายงานใดๆ
   if (!msg || !currentReportId) return;
 
   const commentData = {
@@ -489,7 +598,7 @@ async function sendCmt() {
     avatar_color: 'av-blue',
     author_initials: getInitials(currentUser.name),
     message: msg,
-    tag: selTag
+    tag: selTag //? แนบ Tag (ถ้ามี) เช่น 'ต้องแก้ไข', 'รับทราบ'
   };
 
   try {
@@ -499,12 +608,17 @@ async function sendCmt() {
       body: JSON.stringify(commentData)
     });
     if (res.ok) {
+      //? เคลียร์ช่องพิมพ์และรีเซ็ต Tag หลังจากส่งสำเร็จ
       document.getElementById('s-msg').value = '';
       document.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
       selTag = '';
+      
+      //? แสดงสัญลักษณ์ "สำเร็จ" (Checkmark) ชั่วคราว
       const ok = document.getElementById('s-ok');
       ok.style.display = 'block';
       setTimeout(() => ok.style.display = 'none', 3000);
+      
+      //? โหลดหน้าแสดงผลใหม่เพื่ออัปเดตประวัติการสื่อสารล่าสุด
       loadReportDetail(currentReportId);
     }
   } catch(e) {
@@ -512,27 +626,35 @@ async function sendCmt() {
   }
 }
 
-/* ── Description modal (read-only) ── */
+/* ── ฟังก์ชันดูคำอธิบายงาน (Description modal) ── */
+//? แสดง Modal เพื่ออ่านรายละเอียดของงานแบบเต็มๆ (เนื่องจากในหน้าสรุปถูกย่อให้อยู่บรรทัดเดียว)
 function viewDesc(desc) {
-  document.getElementById('task-desc-input').value = desc;
+  const inputEl = document.getElementById('task-desc-input');
+  if (inputEl) inputEl.value = desc;
   document.getElementById('desc-modal').classList.add('on');
 }
 
+//? ปิด Modal รายละเอียดงาน
 function closeDescModal() {
   document.getElementById('desc-modal').classList.remove('on');
 }
 
-/* ── Helpers ── */
+/* ── ฟังก์ชันตัวช่วยขนาดเล็ก (Helpers) ── */
+
+//? สร้างอักษรย่อจากชื่อ (เช่น "สมชาย รักดี" -> "สม") เพื่อแสดงในวงกลม Avatar
 function getInitials(name) {
+  if (!name) return '??';
   return name.split(' ').slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
 }
 
+//? คืนค่าชื่อ Class CSS ตามสถานะของงาน
 function getStatusBadgeClass(status) {
-  if (status === 'done') return 'bdg-green';
-  if (status === 'prog') return 'bdg-amber';
-  return 'bdg-gray';
+  if (status === 'done') return 'bdg-green'; //? สำเร็จ
+  if (status === 'prog') return 'bdg-amber'; //? กำลังทำ
+  return 'bdg-gray'; //? ยังไม่เริ่ม
 }
 
+//? คืนค่าสัญลักษณ์ (Emoji/Symbol) ตามสถานะของงาน
 function getStatusSymbol(status) {
   if (status === 'done') return '✓';
   if (status === 'prog') return '⋯';
@@ -613,19 +735,25 @@ function hideUsersScreen() {
   setNavActive(null);
 }
 
+/* ── ระบบจัดการผู้ใช้ (User Management - Super Admin Only) ── */
+//? ฟังก์ชันโหลดข้อมูลผู้ใช้ทั้งหมดเพื่อนำมาบริหารจัดการ (จำกัดสิทธิ์เฉพาะระดับผู้ดูแลระบบ)
 async function loadUserManagement() {
-  collapsedDepts = null; // reset ให้ collapse ทั้งหมดเมื่อโหลดใหม่
+  collapsedDepts = null; //? รีเซ็ตสถานะการย่อหน่วยงานทุกครั้งที่โหลดข้อมูลใหม่
   document.getElementById('u-rows').innerHTML =
     '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
-  // migrate ignore field — เรียกครั้งเดียวต่อ session
+    
+  //? การย้ายฟิลด์ (Migration): ตรวจสอบและอัปเดตสถานะ 'ignore' ในไฟล์ฐานข้อมูล (รันครั้งเดียวต่อ Session)
   if (!ignoreMigrated) {
     ignoreMigrated = true;
     fetch('/api/admin/migrate/ignore', { method:'POST' }).catch(() => {});
   }
+  
   try {
     const res = await fetch('/api/admin/users');
-    if (!res.ok) throw new Error('Forbidden');
+    if (!res.ok) throw new Error('Forbidden'); //? ป้องกันการเข้าถึงหากไม่มีสิทธิ์
     allUsers = await res.json();
+    
+    //? นำข้อมูลรายชื่อพนักงานทั้งหมดไปเรนเดอร์ลงตารางจัดการ
     renderUserTable(allUsers);
   } catch(e) {
     document.getElementById('u-rows').innerHTML =
@@ -733,11 +861,13 @@ function filterUsers(query) {
   }
 }
 
+//? ฟังก์ชันช่วยรีเรนเดอร์ตารางผู้ใช้ใหม่โดยอิงจากคำค้นหาที่ค้างอยู่ในช่อง Search
 function _reRenderUsers() {
   const q = (document.getElementById('u-search') || {}).value || '';
   filterUsers(q);
 }
 
+//? เมื่อเลือก Level ระบบจะเลือก Role เริ่มต้นที่เหมาะสมให้อัตโนมัติ (เช่น Level 1 -> Supervisor)
 function autoFillRole() {
   const lv = document.getElementById('u-level').value;
   document.getElementById('u-role').value = levelRoleMap[lv] || 'employee';
@@ -748,18 +878,25 @@ function _setModalField(id, val) {
   if (el) el.value = val ?? '';
 }
 
+//? เปิด Modal สำหรับ "เพิ่มผู้ใช้ใหม่"
 function openAddUserModal() {
-  userEditMode = false;
+  userEditMode = false; //? โหมดเพิ่มข้อมูลใหม่
   userEditEmail = null;
   document.getElementById('user-modal-title').textContent = 'เพิ่มผู้ใช้ใหม่';
+  
+  //? เปิดให้กรอกอีเมลได้ (หากเป็นโหมดแก้ไขจะถูกล็อค)
   document.getElementById('u-email').readOnly = false;
   document.getElementById('u-email').style.opacity = '1';
   document.getElementById('u-pwd-hint').textContent = '(จำเป็น)';
+  
+  //? ล้างค่าในช่องกรอกข้อมูลทั้งหมด
   ['u-firstname','u-lastname','u-email','u-personal-id','u-position','u-department','u-agency','u-password']
     .forEach(id => _setModalField(id, ''));
+    
   _setModalField('u-level', '0');
   _setModalField('u-role', 'employee');
   _setModalField('u-ignore', '0');
+  
   document.getElementById('user-modal').classList.add('on');
 }
 
@@ -790,6 +927,7 @@ function closeUserModal() {
   document.getElementById('user-modal').classList.remove('on');
 }
 
+//? บันทึกข้อมูลผู้ใช้ (ทั้งกรณีเพิ่มใหม่ และ แก้ไขข้อมูลเดิม)
 async function saveUser() {
   const firstname   = document.getElementById('u-firstname').value.trim();
   const lastname    = document.getElementById('u-lastname').value.trim();
@@ -797,6 +935,7 @@ async function saveUser() {
   const personal_id = document.getElementById('u-personal-id').value.trim();
   const password    = document.getElementById('u-password').value.trim();
 
+  //? //! Validation: ตรวจสอบฟิลด์ที่จำเป็นต้องกรอก
   if (!firstname || !lastname || !personal_id) {
     Swal.fire({ icon:'warning', title:'กรอกข้อมูลไม่ครบ', text:'กรุณากรอก ชื่อ นามสกุล และรหัสประจำตัว', confirmButtonText:'ตกลง' });
     return;
@@ -822,17 +961,21 @@ async function saveUser() {
     role:   document.getElementById('u-role').value.trim() || levelRoleMap[String(level)] || 'employee',
     ignore: parseInt(document.getElementById('u-ignore').value),
   };
+  
+  //? หากมีการกรอกรหัสผ่าน (ใช้ตอนกำหนดใหม่ หรือเปลี่ยนรหัสผ่านเดิม) ให้แนบไปใน API
   if (password) payload.password = password;
 
   try {
     let res;
     if (userEditMode) {
+      //? กรณีแก้ไข: ใช้เมธอด PUT พร้อมระบุ Email เดิมใน URL
       res = await fetch(`/api/admin/users/${encodeURIComponent(userEditEmail)}`, {
         method: 'PUT',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify(payload)
       });
     } else {
+      //? กรณีเพิ่มใหม่: ใช้เมธอด POST
       payload.email = email;
       res = await fetch('/api/admin/users', {
         method: 'POST',
@@ -840,13 +983,17 @@ async function saveUser() {
         body: JSON.stringify(payload)
       });
     }
+    
     if (res.ok) {
       closeUserModal();
       Swal.fire({ icon:'success', title:'บันทึกสำเร็จ', timer:1500, showConfirmButton:false });
+      
       if (userEditMode) {
+        //? อัปเดตข้อมูลในอาร์เรย์ Local ทันทีโดยไม่ต้องโหลด API ใหม่
         const idx = allUsers.findIndex(u => u.email === userEditEmail);
         if (idx >= 0) Object.assign(allUsers[idx], payload);
       } else {
+        //? เพิ่มผู้ใช้ใหม่ลงในลิสต์ และเรียงลำดับหน่วยงานใหม่
         payload.email = email;
         allUsers.push(payload);
         allUsers.sort((a, b) => {
@@ -854,7 +1001,7 @@ async function saveUser() {
           return d !== 0 ? d : (a.firstname || '').localeCompare(b.firstname || '', 'th');
         });
       }
-      _reRenderUsers();
+      _reRenderUsers(); //? พ่นตารางใหม่
     } else {
       const err = await res.json().catch(() => ({}));
       Swal.fire({ icon:'error', title:'เกิดข้อผิดพลาด', text: err.detail || 'ไม่สามารถบันทึกได้', confirmButtonText:'ตกลง' });
@@ -864,7 +1011,9 @@ async function saveUser() {
   }
 }
 
+//? ลบข้อมูลผู้ใช้
 async function confirmDeleteUser(email, name) {
+  //? //! คำเตือน: ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้
   const result = await Swal.fire({
     icon: 'warning',
     title: 'ยืนยันการลบ',
@@ -874,7 +1023,9 @@ async function confirmDeleteUser(email, name) {
     cancelButtonText: 'ยกเลิก',
     confirmButtonColor: '#e24b4a',
   });
+  
   if (!result.isConfirmed) return;
+  
   try {
     const res = await fetch(`/api/admin/users/${encodeURIComponent(email)}`, { method:'DELETE' });
     if (res.ok) {
@@ -889,6 +1040,8 @@ async function confirmDeleteUser(email, name) {
   }
 }
 
+//? สลับสถานะ Ignore (ซ่อน/แสดง) ของพนักงาน
+//? พนักงานที่ถูกตั้งค่า Ignore=1 จะยังอยู่ในระบบ Login ได้ปกติ แต่ชื่อจะไม่โชว์ในตารางรายงานแดชบอร์ด
 async function toggleIgnore(email, currentIgnore) {
   const newIgnore = currentIgnore ? 0 : 1;
   try {
@@ -906,15 +1059,16 @@ async function toggleIgnore(email, currentIgnore) {
 }
 
 /* ════════════════════════════════════════
-   EVALUATION MANAGEMENT (super admin only)
+   ระบบจัดการสายบังคับบัญชา (EVALUATION MANAGEMENT - Super Admin Only)
    ════════════════════════════════════════ */
 
-let allEvalsData = [];
-let allUsersForEval = [];
-let evalTargetId = null;
-let evalCurrentIds = [];
-let collapsedEvalDepts = null; // null = ยังไม่ initialize (จะ collapse ทั้งหมดครั้งแรก)
+let allEvalsData = [];     //? ข้อมูลสายบังคับบัญชาทั้งหมด
+let allUsersForEval = [];  //? รายชื่อผู้ใช้แบบย่อสำหรับนำมาทำลิสต์ผู้ประเมิน
+let evalTargetId = null;   //? พนักงานที่กำลังถูกแก้ไขสายบังคับบัญชา
+let evalCurrentIds = [];   //? ลิสต์ ID ผู้ประเมินปัจจุบันของพนักงานที่เลือก
+let collapsedEvalDepts = null; //? สถานะการย่อ/ขยาย แต่ละหน่วยงานในหน้าจัดการสายงาน
 
+//? แสดงหน้าจอจัดการสายบังคับบัญชา
 function showEvalsScreen() {
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'none';
@@ -924,9 +1078,10 @@ function showEvalsScreen() {
   el.style.display = 'block';
   _animateIn(el);
   setNavActive('btn-evals-mgmt');
-  loadEvalManagement();
+  loadEvalManagement(); //? โหลดสิทธิ์และข้อมูลประเมิน
 }
 
+//? ปิดหน้าจอจัดการสายงาน
 function hideEvalsScreen() {
   document.getElementById('sup-evals').style.display = 'none';
   const el = document.getElementById('sup-list');
@@ -935,17 +1090,20 @@ function hideEvalsScreen() {
   setNavActive(null);
 }
 
+//? ลอจิกโหลดข้อมูลสายบังคับบัญชาจาก API
 async function loadEvalManagement() {
-  collapsedEvalDepts = null; // reset ให้ collapse ทั้งหมดเมื่อโหลดใหม่
+  collapsedEvalDepts = null; //? รีเซ็ตสถานะการย่อหน่วยงาน
   document.getElementById('ev-rows').innerHTML =
     '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+    
   try {
     const res = await fetch('/api/admin/evaluations');
     if (!res.ok) throw new Error('Forbidden');
     const data = await res.json();
-    allEvalsData = data.evaluations;
-    allUsersForEval = data.users;
-    renderEvalTable(allEvalsData);
+    
+    allEvalsData = data.evaluations; //? เก็บข้อมูลสายงาน
+    allUsersForEval = data.users;    //? เก็บข้อมูลผู้ใช้สำหรับช่อง Search
+    renderEvalTable(allEvalsData);   //? วาดตารางสายงาน
   } catch(e) {
     document.getElementById('ev-rows').innerHTML =
       '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่มีสิทธิ์เข้าถึงข้อมูล</div>';
@@ -1050,40 +1208,48 @@ function _reRenderEvals() {
   filterEvals(q);
 }
 
+//? แสดงหน้าจอแก้ไขผู้ประเมิน (Modal)
 function openEditEvalModal(targetId) {
   const ev = allEvalsData.find(x => x.target_id === targetId);
   if (!ev) return;
-  evalTargetId = targetId;
-  evalCurrentIds = ev.evaluators.map(e => e.evaluator_id);
+  evalTargetId = targetId; //? จดจำพนักงานเป้าหมาย
+  evalCurrentIds = ev.evaluators.map(e => e.evaluator_id); //? รายชื่อผู้ประเมินปัจจุบัน
 
+  //? แสดงข้อมูลเบื้องต้นของพนักงานที่กำลังถูกแก้ไข
   document.getElementById('eval-target-info').innerHTML = `
     <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">พนักงาน</div>
     <div style="font-size:14px;font-weight:500">${ev.target_name}</div>
     <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">${ev.target_position || '—'} · ${ev.target_department || '—'}</div>`;
 
+  //? ล้างค่าหน้าการค้นหา
   const searchInput = document.getElementById('eval-search-input');
   if (searchInput) searchInput.value = '';
   const resultsEl = document.getElementById('eval-search-results');
   if (resultsEl) resultsEl.style.display = 'none';
 
-  renderEvalChips();
+  renderEvalChips(); //? วาดรายการผู้ประเมินที่เป็นเม็ด (Chips)
   document.getElementById('eval-modal').classList.add('on');
 }
 
+//? วาดรายการผู้ประเมินในรูปแบบ Chips พร้อมปุ่ม เลื่อนลำดับ และปุ่มลบ
 function renderEvalChips() {
   const container = document.getElementById('eval-chips');
   if (!evalCurrentIds.length) {
     container.innerHTML = '<span style="font-size:12px;color:var(--color-text-secondary)">ยังไม่มีผู้ประเมิน</span>';
     return;
   }
+  
   const last = evalCurrentIds.length - 1;
   container.innerHTML = evalCurrentIds.map((pid, idx) => {
     const u = allUsersForEval.find(x => x.personal_id === pid);
     const name = u ? u.name : pid;
     const dept = u ? (u.department || '') : '';
     const pidSafe = pid.replace(/'/g, "\\'");
+    
+    //? เงื่อนไขสำหรับปิดปุ่ม ขึ้น/ลง เมื่ออยู่ที่หัวหรือท้ายแถว
     const disUp = idx === 0 ? 'disabled' : '';
     const disDown = idx === last ? 'disabled' : '';
+    
     return `
       <div style="display:flex;align-items:center;gap:5px;background:#E6F1FB;border:0.5px solid #B8CFF0;border-radius:20px;padding:3px 8px 3px 4px;font-size:12px">
         <span style="width:20px;height:20px;border-radius:50%;background:#1059A3;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${idx + 1}</span>
@@ -1103,21 +1269,26 @@ function renderEvalChips() {
   }).join('');
 }
 
+//? ฟังก์ชันสลับลำดับผู้ประเมิน (เพื่อกำหนดว่าใครจะเป็นหัวหน้าลำดับถัดไป)
 function moveEvaluator(pid, dir) {
   const idx = evalCurrentIds.indexOf(pid);
   if (idx < 0) return;
   const newIdx = idx + dir;
   if (newIdx < 0 || newIdx >= evalCurrentIds.length) return;
+  
+  //? สลับตำแหน่งในอาร์เรย์
   evalCurrentIds.splice(idx, 1);
   evalCurrentIds.splice(newIdx, 0, pid);
-  renderEvalChips();
+  renderEvalChips(); //? วาดใหม่
 }
 
+//? ค้นหาข้อมูลผู้ใช้ที่ตรงกับเงื่อนไขการค้นหา เพื่อเพิ่มเข้าไปในสายบังคับบัญชา
 function onEvalSearchInput(value) {
   const q = value.trim().toLowerCase();
   const resultsEl = document.getElementById('eval-search-results');
   if (!q) { resultsEl.style.display = 'none'; return; }
 
+  //? กรองรายชื่อ: ไม่เอาตัวเอง และไม่เอาคนที่อยู่ในลิสต์ผู้ประเมินอยู่แล้ว
   const matches = allUsersForEval
     .filter(u => u.personal_id !== evalTargetId && !evalCurrentIds.includes(u.personal_id))
     .filter(u =>
@@ -1125,7 +1296,7 @@ function onEvalSearchInput(value) {
       (u.department || '').toLowerCase().includes(q) ||
       (u.position || '').toLowerCase().includes(q)
     )
-    .slice(0, 8);
+    .slice(0, 8); //? แสดงผลสูงสุด 8 รายการเพื่อความรวดเร็ว
 
   if (!matches.length) {
     resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--color-text-secondary)">ไม่พบผู้ใช้ที่ตรงกัน</div>';
@@ -1146,21 +1317,27 @@ function onEvalSearchInput(value) {
   resultsEl.style.display = 'block';
 }
 
+//? เลือกผู้ใช้จากการค้นหามาลงในลิสต์ผู้ประเมิน
 function selectEvalUser(pid) {
   if (!pid || evalCurrentIds.includes(pid)) return;
   evalCurrentIds.push(pid);
+  
+  //? รีเซ็ตช่องค้นหา
   const searchInput = document.getElementById('eval-search-input');
   if (searchInput) searchInput.value = '';
   const resultsEl = document.getElementById('eval-search-results');
   if (resultsEl) resultsEl.style.display = 'none';
-  renderEvalChips();
+  
+  renderEvalChips(); //? วาดรายการใหม่
 }
 
+//? ลบผู้ประเมินออกจากลิสต์
 function removeEvaluator(pid) {
   evalCurrentIds = evalCurrentIds.filter(x => x !== pid);
   renderEvalChips();
 }
 
+//? ปิด Modal การจัดการสายงาน และล้างสถานะชั่วคราว
 function closeEvalModal() {
   document.getElementById('eval-modal').classList.remove('on');
   const searchInput = document.getElementById('eval-search-input');
@@ -1237,43 +1414,55 @@ function hideStatsScreen() {
   document.getElementById('sup-list').style.display = 'block';
 }
 
+//? ฟังก์ชันหลักในการโหลดสถิติ
 async function loadStats(month) {
   if (!month) return;
   statsCurrentMonth = month;
-  collapsedStatsDepts = null;
+  collapsedStatsDepts = null; //? รีเซ็ตการย่อหน่วยงาน
+  
+  //? แสดง Loading สปินเนอร์
   document.getElementById('stats-rows').innerHTML =
     '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
-  // reset KPI
+    
+  //? รีเซ็ตตัวเลข KPI (Dash) เป็นเครื่องหมาย — ก่อนแสดงค่าใหม่
   ['sk-users','sk-submitted','sk-compliance','sk-progress'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '—';
   });
+
   try {
+    //? เรียก API ดึงสถิติรายเดือน
     const res = await fetch(`/api/admin/stats?month=${encodeURIComponent(month)}`);
     if (!res.ok) throw new Error('Forbidden');
     statsData = await res.json();
-    renderStats(statsData);
+    renderStats(statsData); //? วาดตารางและอัปเดต KPI
   } catch(e) {
     document.getElementById('stats-rows').innerHTML =
       '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่สามารถโหลดข้อมูลได้</div>';
   }
 }
 
+//? ฟังก์ชันหลักในการวาด (Render) ข้อมูลสถิติลงในตารางหลัก
 function renderStats(data, isFiltered = false) {
   const users = data.users;
   const weekdays = data.weekdays;
 
-  // KPI
+  //? --- ส่วนการคำนวณ KPI สรุปภาพรวม (Aggregation) ---
   const totalUsers = users.length;
+  //? หาจำนวนความถี่ในการส่งงานรวมของทุกคน
   const totalSubmitted = users.reduce((s, u) => s + u.days_submitted, 0);
+  //? ค่าเฉลี่ย Compliance (วินัยในการส่งรายงาน)
   const avgCompliance = totalUsers > 0
     ? Math.round(users.reduce((s, u) => s + u.compliance, 0) / totalUsers * 10) / 10
     : 0;
+  
+  //? ค่าเฉลี่ยความก้าวหน้า (Avg Progress) กรองเฉพาะผู้ที่ "เคยส่งงาน" เท่านั้น
   const activeUsers = users.filter(u => u.days_submitted > 0);
   const avgProgress = activeUsers.length > 0
     ? Math.round(activeUsers.reduce((s, u) => s + u.avg_progress, 0) / activeUsers.length * 10) / 10
     : 0;
 
+  //? อัปเดตตัวเลขใส่ลงใน Card สรุป (สี่เหลี่ยมด้านบน)
   const setKpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   setKpi('sk-users', totalUsers);
   setKpi('sk-submitted', totalSubmitted);
@@ -1286,7 +1475,7 @@ function renderStats(data, isFiltered = false) {
     return;
   }
 
-  // Group by department
+  //? จัดกลุ่มตามแผนก (Department) เพื่อความสวยงามของตารางสถิติ
   const groups = {};
   users.forEach(u => {
     const dept = u.department || 'ไม่ระบุหน่วยงาน';
@@ -1294,10 +1483,12 @@ function renderStats(data, isFiltered = false) {
     groups[dept].push(u);
   });
 
+  //? ตั้งค่าการย่อ/ขยายเริ่มต้น
   if (collapsedStatsDepts === null) {
     collapsedStatsDepts = new Set(Object.keys(groups));
   }
 
+  //? ฟังก์ชันตัวช่วยเลือกสีตามค่าเฉลี่ย (%) เพื่อแสดงผลแบบไฟจราจร
   const compColor = v => v >= 80 ? '#D4EDDA;color:#1A5C28' : v >= 50 ? '#FFF3CD;color:#665200' : '#F8D7DA;color:#721C24';
   const progColor = v => v >= 80 ? '#D4EDDA;color:#1A5C28' : v >= 40 ? '#FFF3CD;color:#665200' : '#F8D7DA;color:#721C24';
 
@@ -1321,6 +1512,8 @@ function renderStats(data, isFiltered = false) {
     const isCollapsed = !isFiltered && collapsedStatsDepts.has(dept);
     const icon = isCollapsed ? '▶' : '▼';
     const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    
+    //? ส่วนหัวของแต่ละแผนกในตารางสถิติ
     html += `
       <tr style="background:#F3EEE8;border-top:1px solid #DDD0C0;cursor:pointer;user-select:none"
         onclick="toggleStatsDeptCollapse('${deptSafe}')">
@@ -1336,6 +1529,8 @@ function renderStats(data, isFiltered = false) {
         const rowBg = idx % 2 === 0 ? '#FAFBFC' : '#FFFFFF';
         const cc = compColor(u.compliance);
         const pc = progColor(u.avg_progress);
+        
+        //? ข้อมูลสถิติของพนักงานรายคน
         html += `
           <tr style="background:${rowBg};border-bottom:0.5px solid var(--color-border-tertiary)">
             <td style="padding:8px 10px">
@@ -1370,65 +1565,95 @@ function renderStats(data, isFiltered = false) {
   document.getElementById('stats-rows').innerHTML = html;
 }
 
+//? สลับสถานะ ยุบ/ขยาย (Collapse/Expand) ของแผนกในหน้าตารางสถิติ
 function toggleStatsDeptCollapse(dept) {
   if (!collapsedStatsDepts) collapsedStatsDepts = new Set();
+  
   if (collapsedStatsDepts.has(dept)) {
-    collapsedStatsDepts.delete(dept);
+    collapsedStatsDepts.delete(dept); //? ขยาย
   } else {
-    collapsedStatsDepts.add(dept);
+    collapsedStatsDepts.add(dept);    //? ยุบ
   }
+  
+  //? วาดตารางใหม่เพื่อสะท้อนสถานะปัจจุบัน
   if (statsData) renderStats(statsData, false);
 }
 
+/* ── ส่วนการส่งออกข้อมูลสถิติ (Export Monthly Stats Excel) ── */
+//? ฟังก์ชันแปลงข้อมูลตารางสถิติรายเดือนเป็นไฟล์ Excel และสั่งดาวน์โหลด
 async function exportStatsExcel() {
   const month = (document.getElementById('stats-month-picker') || {}).value || _getDefaultMonth();
   const btn = document.getElementById('btn-export-excel');
   const origText = btn ? btn.innerHTML : '';
+  
   try {
     if (btn) {
       btn.disabled = true;
+      //? แสดง Spinner ขณะรอการประมวลผลจาก Backend
       btn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>กำลังดาวน์โหลด...';
     }
+    
+    //? ยิงคำขอไปยัง Endpoint สำหรับ Export สถิติเฉพาะเดือนที่เลือก
     const res = await fetch(`/api/admin/stats/export?month=${encodeURIComponent(month)}`);
     if (!res.ok) throw new Error('Export failed');
+    
+    //? รับข้อมูลเป็น Blob (Binary Large Object) เพื่อจัดการไฟล์บนหน่วยความจำ Browser
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
+    
+    //? สร้าง Element สำหรับดาวน์โหลด และสั่ง Click อัตโนมัติ
     const a = document.createElement('a');
     a.href = url;
-    a.download = `stats_${month}.xlsx`;
+    a.download = `stats_${month}.xlsx`; //? ตั้งชื่อไฟล์เป็น 'stats_YYYY-MM.xlsx'
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
-    if (btn) { btn.innerHTML = '✓ ดาวน์โหลดแล้ว'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
+    URL.revokeObjectURL(url); //? คืนหน่วยความจำเมื่อดาวน์โหลดเสร็จ
+    
+    if (btn) { 
+      btn.innerHTML = '✓ ดาวน์โหลดแล้ว'; 
+      setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); 
+    }
   } catch(e) {
     alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
     if (btn) { btn.innerHTML = origText; btn.disabled = false; }
   }
 }
 
+/* ── ระบบออกรายงานรายงานประจำวันละเอียด (Export Daily Report Details) ── */
+//? ฟังก์ชันสำหรับดาวน์โหลดรายงานของพนักงาน "ทุกคนในวันที่กำหนด" ในรูปแบบ Excel (.xlsx)
+//? ข้อมูลจะประกอบด้วย รายละเอียดงาน ปัญหา Progress และรูปแบบการทำงานอย่างละเอียด
 async function exportDailyReportExcel() {
   const dateEl = document.getElementById('s-date-filter');
-  const dateVal = dateEl ? dateEl.value : getTodayStr();
+  const dateVal = dateEl ? dateEl.value : getTodayStr(); //? หากไม่เลือกวัน ให้ใช้ค่าวันปัจจุบัน
   if (!dateVal) { alert('กรุณาเลือกวันที่'); return; }
+  
   const btn = document.querySelector('[onclick="exportDailyReportExcel()"]');
   const origText = btn ? btn.innerHTML : '';
+  
   try {
     if (btn) {
       btn.disabled = true;
       btn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:4px"></span>กำลังโหลด...';
     }
+    
+    //? เรียก API เพื่อดึง Blob (Binary File) ของ Excel
     const res = await fetch(`/api/admin/reports/export?date=${encodeURIComponent(dateVal)}`);
     if (!res.ok) throw new Error('Export failed');
+    
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
+    
+    //? สร้างลิงก์หลอกขึ้นมาใน DOM และทำการจำลองการคลิก (Trigger Click) เพื่อดาวน์โหลดไฟล์
     const a = document.createElement('a');
     a.href = url;
-    a.download = `daily_report_${dateVal}.xlsx`;
+    a.download = `daily_report_${dateVal}.xlsx`; //? ตั้งชื่อไฟล์ตามวันที่เลือก
     document.body.appendChild(a);
     a.click();
     a.remove();
-    URL.revokeObjectURL(url);
+    URL.revokeObjectURL(url); //? ล้างหน่วยความจำ Blob หลังจากดาวน์โหลดเสร็จ
+    
+    //? ยืนยันสถานะสำเร็จชั่วคราวบนปุ่ม
     if (btn) { btn.innerHTML = '✓ สำเร็จ'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
   } catch(e) {
     alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
