@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header
 from database import get_db
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 router = APIRouter()
 
@@ -92,6 +92,78 @@ def delete_user(email: str, authorization: str = Header(None)):
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
     doc_ref.delete()
+    return {"success": True}
+
+
+class EvaluationUpdate(BaseModel):
+    evaluator_ids: List[str]
+
+
+@router.get("/evaluations")
+def list_evaluations(authorization: str = Header(None)):
+    """Get all users with their evaluators (join from evaluations collection)"""
+    db = _require_super_admin(authorization)
+
+    users_by_pid = {}
+    for doc in db.collection("users").stream():
+        u = doc.to_dict()
+        pid = u.get("personal_id")
+        if pid:
+            users_by_pid[pid] = {
+                "personal_id": pid,
+                "name": f"{u.get('firstname','')} {u.get('lastname','')}".strip(),
+                "position": u.get("position", ""),
+                "department": u.get("department", ""),
+                "level": u.get("level", 0),
+                "ignore": u.get("ignore", 0),
+            }
+
+    eval_map = {}
+    for doc in db.collection("evaluations").stream():
+        d = doc.to_dict()
+        target_id = d.get("target_id", doc.id)
+        evaluator_list = []
+        for ev in sorted(d.get("evaluators", []), key=lambda x: x.get("order", 0)):
+            ev_id = ev.get("evaluator_id")
+            ev_info = users_by_pid.get(ev_id, {"name": ev_id, "position": "", "department": ""})
+            evaluator_list.append({
+                "evaluator_id": ev_id,
+                "name": ev_info["name"],
+                "position": ev_info["position"],
+                "department": ev_info["department"],
+            })
+        eval_map[target_id] = evaluator_list
+
+    all_users_list = list(users_by_pid.values())
+    all_users_list.sort(key=lambda x: (x.get("department", ""), x.get("name", "")))
+
+    evaluations = []
+    for pid, u in users_by_pid.items():
+        evaluations.append({
+            "target_id": pid,
+            "target_name": u["name"],
+            "target_department": u["department"],
+            "target_position": u["position"],
+            "target_level": u["level"],
+            "target_ignore": u["ignore"],
+            "evaluators": eval_map.get(pid, []),
+        })
+    evaluations.sort(key=lambda x: (x.get("target_department", ""), x.get("target_name", "")))
+
+    return {"users": all_users_list, "evaluations": evaluations}
+
+
+@router.put("/evaluations/{target_id}")
+def update_evaluation(target_id: str, update: EvaluationUpdate, authorization: str = Header(None)):
+    """Create/update evaluators for a target (replaces the full list)"""
+    db = _require_super_admin(authorization)
+    doc_ref = db.collection("evaluations").document(target_id)
+    evaluators = [{"evaluator_id": pid, "order": i + 1} for i, pid in enumerate(update.evaluator_ids)]
+    doc_ref.set({
+        "target_id": target_id,
+        "evaluators": evaluators,
+        "evaluator_ids": update.evaluator_ids,
+    })
     return {"success": True}
 
 

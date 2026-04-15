@@ -23,6 +23,8 @@ async function initUser() {
     if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
       const btn = document.getElementById('btn-users-mgmt');
       if (btn) btn.style.display = '';
+      const btnEv = document.getElementById('btn-evals-mgmt');
+      if (btnEv) btnEv.style.display = '';
     }
   } catch(e) {
     window.location.replace('/static/index.html');
@@ -116,6 +118,8 @@ function navigateEmployeeReport(delta) {
 
 /* ── Dashboard ── */
 async function loadDashboard() {
+  const sRows = document.getElementById('s-rows');
+  if (sRows) sRows.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
   try {
     const dateEl = document.getElementById('s-date-filter');
     const dateParam = dateEl ? `?date=${dateEl.value}` : '';
@@ -535,6 +539,7 @@ let userEditMode = false;
 let userEditEmail = null;
 let allUsers = [];
 let ignoreMigrated = false;
+let collapsedDepts = null; // null = ยังไม่ initialize (จะ collapse ทั้งหมดครั้งแรก)
 
 const levelRoleMap = { '0':'employee','1':'supervisor','2':'director','3':'executive','9':'super_admin' };
 const levelLabelMap = { 0:'พนักงาน',1:'หัวหน้างาน',2:'ผู้อำนวยการ',3:'ผู้บริหาร',9:'ผู้ดูแลระบบ' };
@@ -543,6 +548,7 @@ const avatarCycleColors = ['av-teal','av-purple','av-coral','av-amber','av-blue'
 function showUsersScreen() {
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'none';
+  document.getElementById('sup-evals').style.display = 'none';
   document.getElementById('sup-users').style.display = 'block';
   loadUserManagement();
 }
@@ -553,8 +559,9 @@ function hideUsersScreen() {
 }
 
 async function loadUserManagement() {
+  collapsedDepts = null; // reset ให้ collapse ทั้งหมดเมื่อโหลดใหม่
   document.getElementById('u-rows').innerHTML =
-    '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">กำลังโหลด...</div>';
+    '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
   // migrate ignore field — เรียกครั้งเดียวต่อ session
   if (!ignoreMigrated) {
     ignoreMigrated = true;
@@ -571,7 +578,7 @@ async function loadUserManagement() {
   }
 }
 
-function renderUserTable(users) {
+function renderUserTable(users, isFiltered = false) {
   const container = document.getElementById('u-rows');
   if (!users.length) {
     container.innerHTML = '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">ไม่พบผู้ใช้</div>';
@@ -586,60 +593,90 @@ function renderUserTable(users) {
     groups[dept].push(u);
   });
 
+  // initialize collapsedDepts ครั้งแรก — collapse ทุก department
+  if (collapsedDepts === null) {
+    collapsedDepts = new Set(Object.keys(groups));
+  }
+
   let html = '';
   let colorIdx = 0;
   Object.entries(groups).forEach(([dept, members]) => {
+    const isCollapsed = !isFiltered && collapsedDepts.has(dept);
+    const icon = isCollapsed ? '▶' : '▼';
+    const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
     html += `
-      <div style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;margin-top:6px;border-radius:0 4px 4px 0">
+      <div style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;margin-top:6px;border-radius:0 4px 4px 0;cursor:pointer;display:flex;align-items:center;gap:7px;user-select:none"
+        onclick="toggleDeptCollapse('${deptSafe}')">
+        <span style="font-size:9px;color:#8C7A5E;flex-shrink:0;width:10px">${icon}</span>
         <span style="font-size:11px;font-weight:700;color:#5D4A2E;letter-spacing:.05em">${dept}</span>
-        <span style="font-size:10px;color:#8C7A5E;margin-left:6px">${members.length} คน</span>
+        <span style="font-size:10px;color:#8C7A5E">${members.length} คน</span>
       </div>`;
 
-    members.forEach(u => {
-      const name = `${u.firstname || ''} ${u.lastname || ''}`.trim();
-      const initials = getInitials(name || u.email);
-      const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
-      const lv = u.level ?? 0;
-      const ignoreVal = u.ignore ?? 0;
-      const emailSafe = (u.email || '').replace(/'/g, "\\'");
-      const nameSafe = name.replace(/'/g, "\\'");
-      html += `
-        <div class="rrow" style="${ignoreVal ? 'opacity:.55' : ''}">
-          <div class="av av-sm ${avColor}">${initials}</div>
-          <div class="rmain">
-            <div class="rname">${name}</div>
-            <div class="rmeta">${u.email || '—'}</div>
-            <div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">${u.position || ''}</div>
-            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
-              <span class="bdg bdg-gray">Lv.${lv} ${levelLabelMap[lv] || ''}</span>
-              <span class="bdg ${ignoreVal ? 'bdg-red' : 'bdg-green'}" style="cursor:pointer"
-                onclick="toggleIgnore('${emailSafe}',${ignoreVal})"
-                title="คลิกเพื่อสลับสถานะ">${ignoreVal ? 'ซ่อน' : 'ปกติ'}</span>
+    if (!isCollapsed) {
+      members.forEach(u => {
+        const name = `${u.firstname || ''} ${u.lastname || ''}`.trim();
+        const initials = getInitials(name || u.email);
+        const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
+        const lv = u.level ?? 0;
+        const ignoreVal = u.ignore ?? 0;
+        const emailSafe = (u.email || '').replace(/'/g, "\\'");
+        const nameSafe = name.replace(/'/g, "\\'");
+        html += `
+          <div class="rrow" style="${ignoreVal ? 'opacity:.55' : ''}">
+            <div class="av av-sm ${avColor}">${initials}</div>
+            <div class="rmain">
+              <div class="rname">${name}</div>
+              <div class="rmeta">${u.email || '—'}</div>
+              <div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">${u.position || ''}</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
+                <span class="bdg bdg-gray">Lv.${lv} ${levelLabelMap[lv] || ''}</span>
+                <span class="bdg ${ignoreVal ? 'bdg-red' : 'bdg-green'}" style="cursor:pointer"
+                  onclick="toggleIgnore('${emailSafe}',${ignoreVal})"
+                  title="คลิกเพื่อสลับสถานะ">${ignoreVal ? 'ซ่อน' : 'ปกติ'}</span>
+              </div>
             </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:5px;align-self:center">
-            <button class="btn-detail" onclick="openEditUserModal('${emailSafe}')">✏ แก้ไข</button>
-            <button class="btn-detail" style="color:#e24b4a;border-color:#ffd0d0"
-              onclick="confirmDeleteUser('${emailSafe}','${nameSafe}')">ลบ</button>
-          </div>
-        </div>`;
-    });
+            <div style="display:flex;flex-direction:column;gap:5px;align-self:center">
+              <button class="btn-detail" onclick="openEditUserModal('${emailSafe}')">✏ แก้ไข</button>
+              <button class="btn-detail" style="color:#e24b4a;border-color:#ffd0d0"
+                onclick="confirmDeleteUser('${emailSafe}','${nameSafe}')">ลบ</button>
+            </div>
+          </div>`;
+      });
+    }
   });
   container.innerHTML = html;
 }
 
+function toggleDeptCollapse(dept) {
+  if (!collapsedDepts) collapsedDepts = new Set();
+  if (collapsedDepts.has(dept)) {
+    collapsedDepts.delete(dept);
+  } else {
+    collapsedDepts.add(dept);
+  }
+  _reRenderUsers();
+}
+
 function filterUsers(query) {
   const q = query.trim().toLowerCase();
-  const filtered = q
-    ? allUsers.filter(u => {
-        const name = `${u.firstname||''} ${u.lastname||''}`.toLowerCase();
-        return name.includes(q)
-          || (u.email||'').toLowerCase().includes(q)
-          || (u.department||'').toLowerCase().includes(q)
-          || (u.position||'').toLowerCase().includes(q);
-      })
-    : allUsers;
-  renderUserTable(filtered);
+  if (q) {
+    const filtered = allUsers.filter(u => {
+      const name = `${u.firstname||''} ${u.lastname||''}`.toLowerCase();
+      return name.includes(q)
+        || (u.email||'').toLowerCase().includes(q)
+        || (u.department||'').toLowerCase().includes(q)
+        || (u.position||'').toLowerCase().includes(q);
+    });
+    renderUserTable(filtered, true); // isFiltered=true → expand ทั้งหมด
+  } else {
+    renderUserTable(allUsers, false); // isFiltered=false → ใช้ collapsedDepts
+  }
+}
+
+function _reRenderUsers() {
+  const q = (document.getElementById('u-search') || {}).value || '';
+  filterUsers(q);
 }
 
 function autoFillRole() {
@@ -747,7 +784,18 @@ async function saveUser() {
     if (res.ok) {
       closeUserModal();
       Swal.fire({ icon:'success', title:'บันทึกสำเร็จ', timer:1500, showConfirmButton:false });
-      loadUserManagement();
+      if (userEditMode) {
+        const idx = allUsers.findIndex(u => u.email === userEditEmail);
+        if (idx >= 0) Object.assign(allUsers[idx], payload);
+      } else {
+        payload.email = email;
+        allUsers.push(payload);
+        allUsers.sort((a, b) => {
+          const d = (a.department || '').localeCompare(b.department || '', 'th');
+          return d !== 0 ? d : (a.firstname || '').localeCompare(b.firstname || '', 'th');
+        });
+      }
+      _reRenderUsers();
     } else {
       const err = await res.json().catch(() => ({}));
       Swal.fire({ icon:'error', title:'เกิดข้อผิดพลาด', text: err.detail || 'ไม่สามารถบันทึกได้', confirmButtonText:'ตกลง' });
@@ -772,7 +820,8 @@ async function confirmDeleteUser(email, name) {
     const res = await fetch(`/api/admin/users/${encodeURIComponent(email)}`, { method:'DELETE' });
     if (res.ok) {
       Swal.fire({ icon:'success', title:'ลบเรียบร้อย', timer:1500, showConfirmButton:false });
-      loadUserManagement();
+      allUsers = allUsers.filter(u => u.email !== email);
+      _reRenderUsers();
     } else {
       Swal.fire({ icon:'error', title:'ลบไม่สำเร็จ', confirmButtonText:'ตกลง' });
     }
@@ -789,6 +838,297 @@ async function toggleIgnore(email, currentIgnore) {
       headers: { 'Content-Type':'application/json' },
       body: JSON.stringify({ ignore: newIgnore })
     });
-    if (res.ok) loadUserManagement();
+    if (res.ok) {
+      const u = allUsers.find(u => u.email === email);
+      if (u) u.ignore = newIgnore;
+      _reRenderUsers();
+    }
   } catch(e) { console.error(e); }
+}
+
+/* ════════════════════════════════════════
+   EVALUATION MANAGEMENT (super admin only)
+   ════════════════════════════════════════ */
+
+let allEvalsData = [];
+let allUsersForEval = [];
+let evalTargetId = null;
+let evalCurrentIds = [];
+let collapsedEvalDepts = null; // null = ยังไม่ initialize (จะ collapse ทั้งหมดครั้งแรก)
+
+function showEvalsScreen() {
+  document.getElementById('sup-list').style.display = 'none';
+  document.getElementById('sup-detail').style.display = 'none';
+  document.getElementById('sup-users').style.display = 'none';
+  document.getElementById('sup-evals').style.display = 'block';
+  loadEvalManagement();
+}
+
+function hideEvalsScreen() {
+  document.getElementById('sup-evals').style.display = 'none';
+  document.getElementById('sup-list').style.display = 'block';
+}
+
+async function loadEvalManagement() {
+  collapsedEvalDepts = null; // reset ให้ collapse ทั้งหมดเมื่อโหลดใหม่
+  document.getElementById('ev-rows').innerHTML =
+    '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  try {
+    const res = await fetch('/api/admin/evaluations');
+    if (!res.ok) throw new Error('Forbidden');
+    const data = await res.json();
+    allEvalsData = data.evaluations;
+    allUsersForEval = data.users;
+    renderEvalTable(allEvalsData);
+  } catch(e) {
+    document.getElementById('ev-rows').innerHTML =
+      '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่มีสิทธิ์เข้าถึงข้อมูล</div>';
+  }
+}
+
+function renderEvalTable(evals, isFiltered = false) {
+  const container = document.getElementById('ev-rows');
+  if (!evals.length) {
+    container.innerHTML = '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">ไม่พบข้อมูล</div>';
+    return;
+  }
+
+  const groups = {};
+  evals.forEach(ev => {
+    const dept = ev.target_department || 'ไม่ระบุหน่วยงาน';
+    if (!groups[dept]) groups[dept] = [];
+    groups[dept].push(ev);
+  });
+
+  // initialize collapsedEvalDepts ครั้งแรก — collapse ทุก department
+  if (collapsedEvalDepts === null) {
+    collapsedEvalDepts = new Set(Object.keys(groups));
+  }
+
+  let html = '';
+  let colorIdx = 0;
+  Object.entries(groups).forEach(([dept, members]) => {
+    const isCollapsed = !isFiltered && collapsedEvalDepts.has(dept);
+    const icon = isCollapsed ? '▶' : '▼';
+    const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
+    html += `
+      <div style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;margin-top:6px;border-radius:0 4px 4px 0;cursor:pointer;display:flex;align-items:center;gap:7px;user-select:none"
+        onclick="toggleEvalDeptCollapse('${deptSafe}')">
+        <span style="font-size:9px;color:#8C7A5E;flex-shrink:0;width:10px">${icon}</span>
+        <span style="font-size:11px;font-weight:700;color:#5D4A2E;letter-spacing:.05em">${dept}</span>
+        <span style="font-size:10px;color:#8C7A5E">${members.length} คน</span>
+      </div>`;
+
+    if (!isCollapsed) {
+      members.forEach(ev => {
+        const initials = getInitials(ev.target_name || ev.target_id);
+        const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
+        const targetIdSafe = (ev.target_id || '').replace(/'/g, "\\'");
+
+        const evalChips = ev.evaluators.length > 0
+          ? ev.evaluators.map(e =>
+              `<span class="bdg bdg-blue" style="font-size:11px">${e.name || e.evaluator_id}</span>`
+            ).join('')
+          : '<span style="font-size:11px;color:var(--color-text-secondary)">— ไม่มีผู้ประเมิน —</span>';
+
+        html += `
+          <div class="rrow" style="${ev.target_ignore ? 'opacity:.55' : ''}">
+            <div class="av av-sm ${avColor}">${initials}</div>
+            <div class="rmain">
+              <div class="rname">${ev.target_name || ev.target_id}</div>
+              <div class="rmeta">${ev.target_position || '—'}</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${evalChips}</div>
+            </div>
+            <div style="align-self:center">
+              <button class="btn-detail" onclick="openEditEvalModal('${targetIdSafe}')">✏ แก้ไข</button>
+            </div>
+          </div>`;
+      });
+    }
+  });
+  container.innerHTML = html;
+}
+
+function toggleEvalDeptCollapse(dept) {
+  if (!collapsedEvalDepts) collapsedEvalDepts = new Set();
+  if (collapsedEvalDepts.has(dept)) {
+    collapsedEvalDepts.delete(dept);
+  } else {
+    collapsedEvalDepts.add(dept);
+  }
+  _reRenderEvals();
+}
+
+function filterEvals(query) {
+  const q = query.trim().toLowerCase();
+  if (q) {
+    const filtered = allEvalsData.filter(ev =>
+      (ev.target_name || '').toLowerCase().includes(q) ||
+      (ev.target_department || '').toLowerCase().includes(q) ||
+      (ev.target_position || '').toLowerCase().includes(q) ||
+      ev.evaluators.some(e => (e.name || '').toLowerCase().includes(q))
+    );
+    renderEvalTable(filtered, true); // isFiltered=true → expand ทั้งหมด
+  } else {
+    renderEvalTable(allEvalsData, false); // isFiltered=false → ใช้ collapsedEvalDepts
+  }
+}
+
+function _reRenderEvals() {
+  const q = (document.getElementById('ev-search') || {}).value || '';
+  filterEvals(q);
+}
+
+function openEditEvalModal(targetId) {
+  const ev = allEvalsData.find(x => x.target_id === targetId);
+  if (!ev) return;
+  evalTargetId = targetId;
+  evalCurrentIds = ev.evaluators.map(e => e.evaluator_id);
+
+  document.getElementById('eval-target-info').innerHTML = `
+    <div style="font-size:11px;color:var(--color-text-secondary);margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em">พนักงาน</div>
+    <div style="font-size:14px;font-weight:500">${ev.target_name}</div>
+    <div style="font-size:12px;color:var(--color-text-secondary);margin-top:2px">${ev.target_position || '—'} · ${ev.target_department || '—'}</div>`;
+
+  const searchInput = document.getElementById('eval-search-input');
+  if (searchInput) searchInput.value = '';
+  const resultsEl = document.getElementById('eval-search-results');
+  if (resultsEl) resultsEl.style.display = 'none';
+
+  renderEvalChips();
+  document.getElementById('eval-modal').classList.add('on');
+}
+
+function renderEvalChips() {
+  const container = document.getElementById('eval-chips');
+  if (!evalCurrentIds.length) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--color-text-secondary)">ยังไม่มีผู้ประเมิน</span>';
+    return;
+  }
+  const last = evalCurrentIds.length - 1;
+  container.innerHTML = evalCurrentIds.map((pid, idx) => {
+    const u = allUsersForEval.find(x => x.personal_id === pid);
+    const name = u ? u.name : pid;
+    const dept = u ? (u.department || '') : '';
+    const pidSafe = pid.replace(/'/g, "\\'");
+    const disUp = idx === 0 ? 'disabled' : '';
+    const disDown = idx === last ? 'disabled' : '';
+    return `
+      <div style="display:flex;align-items:center;gap:5px;background:#E6F1FB;border:0.5px solid #B8CFF0;border-radius:20px;padding:3px 8px 3px 4px;font-size:12px">
+        <span style="width:20px;height:20px;border-radius:50%;background:#1059A3;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${idx + 1}</span>
+        <span style="color:#0C447C;font-weight:500">${name}</span>
+        ${dept ? `<span style="color:#64748b;font-size:10px">${dept}</span>` : ''}
+        <div style="display:flex;gap:2px;margin-left:1px">
+          <button onclick="moveEvaluator('${pidSafe}',-1)" ${disUp}
+            title="เลื่อนขึ้น"
+            style="background:none;border:0.5px solid #B8CFF0;border-radius:4px;cursor:pointer;color:#1059A3;font-size:10px;padding:1px 5px;line-height:1.5;opacity:${disUp ? '.35' : '1'}">↑</button>
+          <button onclick="moveEvaluator('${pidSafe}',1)" ${disDown}
+            title="เลื่อนลง"
+            style="background:none;border:0.5px solid #B8CFF0;border-radius:4px;cursor:pointer;color:#1059A3;font-size:10px;padding:1px 5px;line-height:1.5;opacity:${disDown ? '.35' : '1'}">↓</button>
+        </div>
+        <button onclick="removeEvaluator('${pidSafe}')"
+          style="background:none;border:none;cursor:pointer;color:#64748b;font-size:15px;padding:0;line-height:1;margin-left:1px">&times;</button>
+      </div>`;
+  }).join('');
+}
+
+function moveEvaluator(pid, dir) {
+  const idx = evalCurrentIds.indexOf(pid);
+  if (idx < 0) return;
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= evalCurrentIds.length) return;
+  evalCurrentIds.splice(idx, 1);
+  evalCurrentIds.splice(newIdx, 0, pid);
+  renderEvalChips();
+}
+
+function onEvalSearchInput(value) {
+  const q = value.trim().toLowerCase();
+  const resultsEl = document.getElementById('eval-search-results');
+  if (!q) { resultsEl.style.display = 'none'; return; }
+
+  const matches = allUsersForEval
+    .filter(u => u.personal_id !== evalTargetId && !evalCurrentIds.includes(u.personal_id))
+    .filter(u =>
+      (u.name || '').toLowerCase().includes(q) ||
+      (u.department || '').toLowerCase().includes(q) ||
+      (u.position || '').toLowerCase().includes(q)
+    )
+    .slice(0, 8);
+
+  if (!matches.length) {
+    resultsEl.innerHTML = '<div style="padding:10px 14px;font-size:12px;color:var(--color-text-secondary)">ไม่พบผู้ใช้ที่ตรงกัน</div>';
+    resultsEl.style.display = 'block';
+    return;
+  }
+
+  resultsEl.innerHTML = matches.map(u => {
+    const pidSafe = (u.personal_id || '').replace(/'/g, "\\'");
+    return `
+      <div onclick="selectEvalUser('${pidSafe}')"
+        onmouseover="this.style.background='#EEF3FB'" onmouseout="this.style.background=''"
+        style="padding:8px 14px;cursor:pointer;border-bottom:0.5px solid var(--color-border-tertiary)">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary)">${u.name}</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:1px">${u.department || '—'} · ${u.position || '—'}</div>
+      </div>`;
+  }).join('');
+  resultsEl.style.display = 'block';
+}
+
+function selectEvalUser(pid) {
+  if (!pid || evalCurrentIds.includes(pid)) return;
+  evalCurrentIds.push(pid);
+  const searchInput = document.getElementById('eval-search-input');
+  if (searchInput) searchInput.value = '';
+  const resultsEl = document.getElementById('eval-search-results');
+  if (resultsEl) resultsEl.style.display = 'none';
+  renderEvalChips();
+}
+
+function removeEvaluator(pid) {
+  evalCurrentIds = evalCurrentIds.filter(x => x !== pid);
+  renderEvalChips();
+}
+
+function closeEvalModal() {
+  document.getElementById('eval-modal').classList.remove('on');
+  const searchInput = document.getElementById('eval-search-input');
+  if (searchInput) searchInput.value = '';
+  const resultsEl = document.getElementById('eval-search-results');
+  if (resultsEl) resultsEl.style.display = 'none';
+  evalTargetId = null;
+  evalCurrentIds = [];
+}
+
+async function saveEval() {
+  if (!evalTargetId) return;
+  try {
+    const res = await fetch(`/api/admin/evaluations/${encodeURIComponent(evalTargetId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ evaluator_ids: evalCurrentIds })
+    });
+    if (!res.ok) throw new Error('Error');
+    // บันทึกค่าก่อน closeEvalModal() จะรีเซ็ตเป็น null/[]
+    const savedTargetId = evalTargetId;
+    const savedIds = evalCurrentIds.slice();
+    closeEvalModal();
+    Swal.fire({ icon:'success', title:'บันทึกสำเร็จ', timer:1500, showConfirmButton:false });
+    const evEntry = allEvalsData.find(x => x.target_id === savedTargetId);
+    if (evEntry) {
+      evEntry.evaluators = savedIds.map((pid) => {
+        const u = allUsersForEval.find(x => x.personal_id === pid);
+        return {
+          evaluator_id: pid,
+          name: u ? u.name : pid,
+          position: u ? (u.position || '') : '',
+          department: u ? (u.department || '') : '',
+        };
+      });
+    }
+    _reRenderEvals();
+  } catch(e) {
+    Swal.fire({ icon:'error', title:'เกิดข้อผิดพลาด', text:'ไม่สามารถบันทึกได้', confirmButtonText:'ตกลง' });
+  }
 }

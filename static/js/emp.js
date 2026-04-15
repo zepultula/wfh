@@ -112,6 +112,8 @@ function setupTaskStatusHandlers(row) {
 /* ── Load report ── */
 async function loadReport(dateStr) {
   if (!currentUser) return;
+  const tasksEl = document.getElementById('e-tasks');
+  if (tasksEl) tasksEl.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
   try {
     const reportId = `${currentUser.user_id}_${dateStr}`;
     currentReportId = reportId;

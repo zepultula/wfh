@@ -21,13 +21,14 @@
       </div>
     </div>
     <div class="nb-user" style="display:flex; align-items:center; gap:8px;">
-      <div class="av av-blue" id="nb-av">สว</div>
+      <div class="av av-blue" id="nb-av">กล</div>
       <div style="flex:1;">
-        <div class="nb-name" id="nb-name">สมวิทย์ หัวหน้างาน</div>
+        <div class="nb-name" id="nb-name">กำลังโหลด...</div>
         <div class="nb-role" id="nb-role">หัวหน้างาน / ผู้ดูแลระบบ</div>
       </div>
       <a href="/static/employee.html" class="btn-out">← พนักงาน</a>
       <button class="btn-out" id="btn-users-mgmt" onclick="showUsersScreen()" style="display:none;background:#EEF3FB;color:#1A5CBF;border-color:#B8CFF0">⚙ จัดการผู้ใช้</button>
+      <button class="btn-out" id="btn-evals-mgmt" onclick="showEvalsScreen()" style="display:none;background:#EEF3FB;color:#1A5CBF;border-color:#B8CFF0">🔗 สายบังคับบัญชา</button>
       <button class="btn-out" onclick="doLogout()" style="cursor:pointer;background:#ffeded;color:#e74c3c;border:1px solid #ffd0d0">ออกจากระบบ</button>
     </div>
   </div>
@@ -66,17 +67,17 @@
             <button class="fb" data-f="prob">มีปัญหา</button>
           </div>
         </div>
+        <!-- problems summary -->
+        <div class="card" style="padding:.875rem 1.25rem">
+          <div class="sec-lbl">ปัญหาที่ต้องติดตาม</div>
+          <div id="s-probs-list" style="display:flex;flex-direction:column;gap:8px"></div>
+        </div>
 
         <div id="s-rows">
-          <div style="padding:1rem;text-align:center;color:var(--color-text-secondary)">กำลังโหลด...</div>
+          <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
         </div>
       </div>
 
-      <!-- problems summary -->
-      <div class="card" style="padding:.875rem 1.25rem">
-        <div class="sec-lbl">ปัญหาที่ต้องติดตาม</div>
-        <div id="s-probs-list" style="display:flex;flex-direction:column;gap:8px"></div>
-      </div>
 
     </div>
   </div>
@@ -95,7 +96,29 @@
             style="font-size:12px;padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);outline:none;width:220px;background:var(--color-bg-primary,#fff);color:var(--color-text-primary)">
         </div>
         <div id="u-rows">
-          <div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">กำลังโหลด...</div>
+          <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- evaluation management view -->
+  <div id="sup-evals" style="display:none">
+    <div style="padding:1.25rem">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px">
+        <button class="back-btn" onclick="hideEvalsScreen()">← กลับ Dashboard</button>
+      </div>
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;flex-wrap:wrap;gap:8px">
+          <div>
+            <div class="sec-lbl" style="margin-bottom:2px">กำหนดสายบังคับบัญชา</div>
+            <div style="font-size:11px;color:var(--color-text-secondary)">ระบุว่าใครสามารถเห็นรายงานของใคร</div>
+          </div>
+          <input type="text" id="ev-search" placeholder="ค้นหาชื่อ / หน่วยงาน / ผู้ประเมิน..." oninput="filterEvals(this.value)"
+            style="font-size:12px;padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);outline:none;width:240px;background:var(--color-bg-primary,#fff);color:var(--color-text-primary)">
+        </div>
+        <div id="ev-rows">
+          <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
         </div>
       </div>
     </div>
@@ -226,6 +249,39 @@
     <div class="modal-ft">
       <button class="fb" onclick="closeUserModal()">ยกเลิก</button>
       <button class="btn-send" onclick="saveUser()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- Evaluation Edit Modal -->
+<div class="modal-ov" id="eval-modal">
+  <div class="modal-bx" style="width:min(520px,94vw)">
+    <div class="modal-hd">
+      <div class="modal-ttl" id="eval-modal-title">🔗 กำหนดผู้ประเมิน</div>
+      <button class="modal-cls" onclick="closeEvalModal()">&times;</button>
+    </div>
+    <div class="modal-bd" style="display:flex;flex-direction:column;gap:14px;max-height:68vh;overflow-y:auto">
+      <div id="eval-target-info" style="background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:10px 14px"></div>
+      <div>
+        <div class="fl" style="margin-bottom:8px">ผู้ประเมิน / หัวหน้างาน <span style="font-size:10px;color:var(--color-text-secondary)">(สามารถดูรายงานของพนักงานนี้ได้)</span></div>
+        <div id="eval-chips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:38px;padding:8px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:#fff"></div>
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:6px">เพิ่มผู้ประเมิน <span style="font-size:10px;color:var(--color-text-secondary)">(พิมพ์ชื่อหรือหน่วยงานเพื่อค้นหา)</span></div>
+        <div style="position:relative">
+          <input type="text" id="eval-search-input"
+            placeholder="ค้นหาชื่อ / หน่วยงาน / ตำแหน่ง..."
+            oninput="onEvalSearchInput(this.value)"
+            autocomplete="off"
+            style="width:100%;font-size:13px;padding:7px 10px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);outline:none;background:#fff;color:var(--color-text-primary)">
+          <div id="eval-search-results"
+            style="display:none;position:absolute;top:calc(100% + 2px);left:0;right:0;background:#fff;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);box-shadow:var(--shadow-md);z-index:200;max-height:200px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" onclick="closeEvalModal()">ยกเลิก</button>
+      <button class="btn-send" onclick="saveEval()">บันทึก</button>
     </div>
   </div>
 </div>

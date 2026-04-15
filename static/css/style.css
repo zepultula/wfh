@@ -69,6 +69,11 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 .live{font-size:11px;color:#1D9E75;display:flex;align-items:center;gap:4px}
 .pulse{width:6px;height:6px;border-radius:50%;background:#1D9E75;animation:pu 1.5s infinite;display:inline-block}
 @keyframes pu{0%,100%{opacity:1}50%{opacity:.25}}
+.ld-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:2rem;color:var(--color-text-secondary);font-size:13px}
+.ld-spin{width:26px;height:26px;border:2.5px solid var(--color-border-secondary);border-top-color:#1D9E75;border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-dots::after{content:'';animation:ldots 1.4s steps(4,end) infinite}
+@keyframes ldots{0%,100%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
 .auto-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .al{font-size:11px;color:var(--color-text-secondary);margin-bottom:2px}
 .av2{font-size:13px;font-weight:500}

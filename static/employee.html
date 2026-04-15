@@ -23,7 +23,7 @@
     <div class="nb-user" style="display:flex; align-items:center; gap:8px;">
       <div class="av av-teal" id="nb-av">—</div>
       <div style="flex:1;">
-        <div class="nb-name" id="nb-name">กำลังโหลด...</div>
+        <div class="nb-name" id="nb-name"><span class="ld-dots">กำลังโหลด</span></div>
         <div class="nb-role" id="nb-role">—</div>
       </div>
       <a href="/static/admin.html" class="btn-out" id="goAdminBtn">แอดมิน →</a>
@@ -84,7 +84,7 @@
     <div class="card">
       <div class="sec-lbl">งานที่ดำเนินการวันนี้</div>
       <div id="e-tasks">
-        <!-- Tasks will be rendered by JS -->
+        <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
       </div>
       <button class="btn-add" id="e-add">+ เพิ่มงาน</button>
       <div class="divid"></div>
@@ -118,7 +118,7 @@
       <div class="compose" id="e-compose-box" style="margin-top:12px">
         <div class="compose-hd">
           <div class="av av-teal" style="width:20px;height:20px;font-size:9px" id="e-cmt-av">—</div>
-          <span id="e-cmt-name">กำลังโหลด...</span>
+          <span id="e-cmt-name"><span class="ld-dots">กำลังโหลด</span></span>
         </div>
         <textarea id="e-msg" placeholder="พิมพ์ข้อความตอบกลับหรือสอบถามได้ที่นี่..."></textarea>
         <div class="compose-ft">
