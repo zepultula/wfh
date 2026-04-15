@@ -210,6 +210,24 @@
   </div>
 </div>
 
+<!-- Description Modal -->
+<div class="modal-ov" id="desc-modal">
+  <div class="modal-bx">
+    <div class="modal-hd">
+      <div class="modal-ttl" id="modal-desc-title">📝 คำอธิบายงาน</div>
+      <button class="modal-cls" onclick="closeDescModal()">&times;</button>
+    </div>
+    <div class="modal-bd">
+      <div class="fl" style="margin-bottom:8px">ระบุรายละเอียดเครื่องมือที่ใช้ หรือขั้นตอนโดยละเอียด</div>
+      <textarea id="task-desc-input" placeholder="พิมพ์รายละเอียดเพิ่มเติมที่นี่..."></textarea>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" id="modal-cancel-btn" onclick="closeDescModal()">ยกเลิก</button>
+      <button class="btn-save" id="modal-save-btn" onclick="saveTaskDesc()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/js/header.js?v=1.3.0"></script>
 <script src="/static/js/emp.js?v=1.2.1"></script>
 <script src="/static/js/footer.js?v=1.3.0"></script>
