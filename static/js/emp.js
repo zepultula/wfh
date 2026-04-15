@@ -156,7 +156,7 @@ function populateEmployeeForm(report, readOnly) {
     if (!readOnly) {
       const r = document.createElement('div');
       r.className = 'task-row';
-      r.innerHTML = `<div class="tnum">1</div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." /><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน">&times;</button>`;
+      r.innerHTML = `<div class="tnum">1</div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." /><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
       tasksContainer.appendChild(r);
       setupTaskStatusHandlers(r);
       r.querySelector('.sp-done').classList.add('on');
@@ -193,7 +193,7 @@ function populateEmployeeForm(report, readOnly) {
       if (task.description) r.setAttribute('data-desc', task.description);
       const statusClass = task.status === 'done' ? 'sp-done' : task.status === 'prog' ? 'sp-prog' : 'sp-pend';
       const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
-      const delBtn = readOnly ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน">&times;</button>`;
+      const delBtn = readOnly ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
       r.innerHTML = `<div class="tnum">${idx+1}</div><div class="task-body"><input type="text" value="${task.title}" ${readOnly ? 'readonly' : ''} /><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div>${delBtn}`;
       tasksContainer.appendChild(r);
       setupTaskStatusHandlers(r);
@@ -345,7 +345,7 @@ document.getElementById('e-add').addEventListener('click', () => {
   if (isHistoryMode) return;
   const r = document.createElement('div');
   r.className = 'task-row';
-  r.innerHTML = `<div class="tnum"></div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:5px"/><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน">&times;</button>`;
+  r.innerHTML = `<div class="tnum"></div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:5px"/><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
   document.getElementById('e-tasks').appendChild(r);
   setupTaskStatusHandlers(r);
   r.querySelector('.sp-done').classList.add('on');
@@ -373,6 +373,13 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     });
     return;
   }
+
+  const submitBtn = document.getElementById('btn-submit');
+  const originalText = submitBtn.textContent;
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;">'
+    + '<span class="ld-spin" style="width:18px;height:18px;border-width:2px;border-top-color:#fff;border-color:rgba(255,255,255,0.3);flex-shrink:0;"></span>'
+    + '<span>กำลังส่งรายงาน...</span></span>';
 
   const modeText = document.querySelector('.mode-opt.on').textContent.trim().toLowerCase();
   let work_mode = 'onsite';
@@ -410,6 +417,8 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
     });
     if (res.ok) {
       currentReportExists = true;
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
       Swal.fire({
         icon: 'success',
         title: 'สำเร็จ!',
@@ -420,6 +429,8 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       });
     } else {
       const errorData = await res.json();
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
       Swal.fire({
         icon: 'error',
         title: 'เกิดข้อผิดพลาด',
@@ -428,6 +439,8 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       });
     }
   } catch(e) {
+    submitBtn.disabled = false;
+    submitBtn.textContent = originalText;
     Swal.fire({
       icon: 'error',
       title: 'เชื่อมต่อล้มเหลว',

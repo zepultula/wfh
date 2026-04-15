@@ -156,13 +156,17 @@ document.getElementById('s-filters').addEventListener('click', e => {
 function showDetail(reportId){
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
-  document.getElementById('sup-detail').style.display = 'block';
+  const el = document.getElementById('sup-detail');
+  el.style.display = 'block';
+  _animateIn(el);
   if (reportId) loadReportDetail(reportId);
 }
 
 function hideDetail(){
   document.getElementById('sup-detail').style.display = 'none';
-  document.getElementById('sup-list').style.display = 'block';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
 }
 
 /* ── Load report detail ── */
@@ -207,7 +211,7 @@ function renderReportDetail(report) {
   const initials = getInitials(report.name);
   const workModeBadge = report.work_mode === 'wfh' ? '<span class="bdg bdg-blue">WFH</span>' :
                        report.work_mode === 'hybrid' ? '<span class="bdg bdg-indigo">Hybrid</span>' :
-                       '<span class="bdg bdg-gray">On-site</span>';
+                       '<span class="bdg bdg-green">On-site</span>';
 
   const progressBgColor = report.progress >= 80 ? '#639922' : report.progress >= 40 ? '#EF9F27' : '#E24B4A';
   const progressColor   = report.progress >= 80 ? '#27500A' : report.progress >= 40 ? '#633806' : '#8B4513';
@@ -332,7 +336,7 @@ function renderReports(reports, users = []) {
     const avatarColor = idx % 4 === 0 ? 'av-teal' : idx % 4 === 1 ? 'av-purple' : idx % 4 === 2 ? 'av-coral' : 'av-amber';
     const workModeBadge = report.work_mode === 'wfh' ? '<span class="bdg bdg-blue">WFH</span>' :
                          report.work_mode === 'hybrid' ? '<span class="bdg bdg-indigo">Hybrid</span>' :
-                         '<span class="bdg bdg-gray">On-site</span>';
+                         '<span class="bdg bdg-green">On-site</span>';
     const taskBadges = report.tasks && report.tasks.length > 0
       ? report.tasks.map(t => `<span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)} ${t.title}</span>`).join('')
       : '<span style="color:var(--color-text-secondary);font-size:11px">ไม่มีงาน</span>';
@@ -544,23 +548,69 @@ let userEditEmail = null;
 let allUsers = [];
 let ignoreMigrated = false;
 let collapsedDepts = null; // null = ยังไม่ initialize (จะ collapse ทั้งหมดครั้งแรก)
+let _deptKeyMap = [];    // index → dept name (user table)
+let _evalDeptKeyMap = []; // index → dept name (eval table)
+
+function _animateIn(el) {
+  if (!el) return;
+  el.classList.remove('sub-enter');
+  void el.offsetWidth; // force reflow
+  el.classList.add('sub-enter');
+}
+
+function _animateDeptWrap(wrap, collapse) {
+  if (!wrap) return;
+  wrap.classList.remove('collapsed');
+  if (collapse) {
+    wrap.style.maxHeight = wrap.scrollHeight + 'px';
+    wrap.style.opacity = '1';
+    requestAnimationFrame(() => {
+      wrap.style.maxHeight = '0px';
+      wrap.style.opacity = '0';
+    });
+  } else {
+    const h = wrap.scrollHeight;
+    wrap.style.maxHeight = '0px';
+    wrap.style.opacity = '0';
+    requestAnimationFrame(() => {
+      wrap.style.maxHeight = h + 'px';
+      wrap.style.opacity = '1';
+      wrap.addEventListener('transitionend', () => {
+        wrap.style.maxHeight = 'none';
+      }, { once: true });
+    });
+  }
+}
 
 const levelRoleMap = { '0':'employee','1':'supervisor','2':'director','3':'executive','9':'super_admin' };
 const levelLabelMap = { 0:'พนักงาน',1:'หัวหน้างาน',2:'ผู้อำนวยการ',3:'ผู้บริหาร',9:'ผู้ดูแลระบบ' };
 const avatarCycleColors = ['av-teal','av-purple','av-coral','av-amber','av-blue'];
+
+function setNavActive(activeId) {
+  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('active', id === activeId);
+  });
+}
 
 function showUsersScreen() {
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
-  document.getElementById('sup-users').style.display = 'block';
+  const el = document.getElementById('sup-users');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-users-mgmt');
   loadUserManagement();
 }
 
 function hideUsersScreen() {
   document.getElementById('sup-users').style.display = 'none';
-  document.getElementById('sup-list').style.display = 'block';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
 }
 
 async function loadUserManagement() {
@@ -603,64 +653,68 @@ function renderUserTable(users, isFiltered = false) {
     collapsedDepts = new Set(Object.keys(groups));
   }
 
+  _deptKeyMap = [];
   let html = '';
   let colorIdx = 0;
   Object.entries(groups).forEach(([dept, members]) => {
+    const idx = _deptKeyMap.length;
+    _deptKeyMap.push(dept);
     const isCollapsed = !isFiltered && collapsedDepts.has(dept);
-    const icon = isCollapsed ? '▶' : '▼';
-    const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
     html += `
       <div style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;margin-top:6px;border-radius:0 4px 4px 0;cursor:pointer;display:flex;align-items:center;gap:7px;user-select:none"
-        onclick="toggleDeptCollapse('${deptSafe}')">
-        <span style="font-size:9px;color:#8C7A5E;flex-shrink:0;width:10px">${icon}</span>
+        onclick="toggleDeptCollapse(${idx})">
+        <span class="dept-hd-icon${isCollapsed ? ' rot' : ''}" data-dept-icon="${idx}">▼</span>
         <span style="font-size:11px;font-weight:700;color:#5D4A2E;letter-spacing:.05em">${dept}</span>
         <span style="font-size:10px;color:#8C7A5E">${members.length} คน</span>
-      </div>`;
+      </div>
+      <div class="dept-wrap${isCollapsed ? ' collapsed' : ''}" data-dept-wrap="${idx}">`;
 
-    if (!isCollapsed) {
-      members.forEach(u => {
-        const name = `${u.firstname || ''} ${u.lastname || ''}`.trim();
-        const initials = getInitials(name || u.email);
-        const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
-        const lv = u.level ?? 0;
-        const ignoreVal = u.ignore ?? 0;
-        const emailSafe = (u.email || '').replace(/'/g, "\\'");
-        const nameSafe = name.replace(/'/g, "\\'");
-        html += `
-          <div class="rrow" style="${ignoreVal ? 'opacity:.55' : ''}">
-            <div class="av av-sm ${avColor}">${initials}</div>
-            <div class="rmain">
-              <div class="rname">${name}</div>
-              <div class="rmeta">${u.email || '—'}</div>
-              <div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">${u.position || ''}</div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
-                <span class="bdg bdg-gray">Lv.${lv} ${levelLabelMap[lv] || ''}</span>
-                <span class="bdg ${ignoreVal ? 'bdg-red' : 'bdg-green'}" style="cursor:pointer"
-                  onclick="toggleIgnore('${emailSafe}',${ignoreVal})"
-                  title="คลิกเพื่อสลับสถานะ">${ignoreVal ? 'ซ่อน' : 'ปกติ'}</span>
-              </div>
+    members.forEach(u => {
+      const name = `${u.firstname || ''} ${u.lastname || ''}`.trim();
+      const initials = getInitials(name || u.email);
+      const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
+      const lv = u.level ?? 0;
+      const ignoreVal = u.ignore ?? 0;
+      const emailSafe = (u.email || '').replace(/'/g, "\\'");
+      const nameSafe = name.replace(/'/g, "\\'");
+      html += `
+        <div class="rrow" style="${ignoreVal ? 'opacity:.55' : ''}">
+          <div class="av av-sm ${avColor}">${initials}</div>
+          <div class="rmain">
+            <div class="rname">${name}</div>
+            <div class="rmeta">${u.email || '—'}</div>
+            <div style="font-size:11px;color:var(--color-text-secondary);margin-top:2px">${u.position || ''}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">
+              <span class="bdg bdg-gray">Lv.${lv} ${levelLabelMap[lv] || ''}</span>
+              <span class="bdg ${ignoreVal ? 'bdg-red' : 'bdg-green'}" style="cursor:pointer"
+                onclick="toggleIgnore('${emailSafe}',${ignoreVal})"
+                title="คลิกเพื่อสลับสถานะ">${ignoreVal ? 'ซ่อน' : 'ปกติ'}</span>
             </div>
-            <div style="display:flex;flex-direction:column;gap:5px;align-self:center">
-              <button class="btn-detail" onclick="openEditUserModal('${emailSafe}')">✏ แก้ไข</button>
-              <button class="btn-detail btn-danger"
-                onclick="confirmDeleteUser('${emailSafe}','${nameSafe}')">ลบ</button>
-            </div>
-          </div>`;
-      });
-    }
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px;align-self:center">
+            <button class="btn-detail" onclick="openEditUserModal('${emailSafe}')">✏ แก้ไข</button>
+            <button class="btn-detail btn-danger"
+              onclick="confirmDeleteUser('${emailSafe}','${nameSafe}')">ลบ</button>
+          </div>
+        </div>`;
+    });
+
+    html += `</div>`;
   });
   container.innerHTML = html;
 }
 
-function toggleDeptCollapse(dept) {
+function toggleDeptCollapse(idx) {
+  const dept = _deptKeyMap[idx];
+  if (dept === undefined) return;
   if (!collapsedDepts) collapsedDepts = new Set();
-  if (collapsedDepts.has(dept)) {
-    collapsedDepts.delete(dept);
-  } else {
-    collapsedDepts.add(dept);
-  }
-  _reRenderUsers();
+  const willCollapse = !collapsedDepts.has(dept);
+  if (willCollapse) collapsedDepts.add(dept); else collapsedDepts.delete(dept);
+  const wrap = document.querySelector(`[data-dept-wrap="${idx}"]`);
+  const icon = document.querySelector(`[data-dept-icon="${idx}"]`);
+  _animateDeptWrap(wrap, willCollapse);
+  if (icon) icon.classList.toggle('rot', willCollapse);
 }
 
 function filterUsers(query) {
@@ -866,13 +920,19 @@ function showEvalsScreen() {
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-users').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
-  document.getElementById('sup-evals').style.display = 'block';
+  const el = document.getElementById('sup-evals');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-evals-mgmt');
   loadEvalManagement();
 }
 
 function hideEvalsScreen() {
   document.getElementById('sup-evals').style.display = 'none';
-  document.getElementById('sup-list').style.display = 'block';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
 }
 
 async function loadEvalManagement() {
@@ -911,59 +971,63 @@ function renderEvalTable(evals, isFiltered = false) {
     collapsedEvalDepts = new Set(Object.keys(groups));
   }
 
+  _evalDeptKeyMap = [];
   let html = '';
   let colorIdx = 0;
   Object.entries(groups).forEach(([dept, members]) => {
+    const idx = _evalDeptKeyMap.length;
+    _evalDeptKeyMap.push(dept);
     const isCollapsed = !isFiltered && collapsedEvalDepts.has(dept);
-    const icon = isCollapsed ? '▶' : '▼';
-    const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
 
     html += `
       <div style="background:#F3EEE8;border-left:3px solid #C9A96E;padding:7px 14px;margin-top:6px;border-radius:0 4px 4px 0;cursor:pointer;display:flex;align-items:center;gap:7px;user-select:none"
-        onclick="toggleEvalDeptCollapse('${deptSafe}')">
-        <span style="font-size:9px;color:#8C7A5E;flex-shrink:0;width:10px">${icon}</span>
+        onclick="toggleEvalDeptCollapse(${idx})">
+        <span class="dept-hd-icon${isCollapsed ? ' rot' : ''}" data-eval-dept-icon="${idx}">▼</span>
         <span style="font-size:11px;font-weight:700;color:#5D4A2E;letter-spacing:.05em">${dept}</span>
         <span style="font-size:10px;color:#8C7A5E">${members.length} คน</span>
-      </div>`;
+      </div>
+      <div class="dept-wrap${isCollapsed ? ' collapsed' : ''}" data-eval-dept-wrap="${idx}">`;
 
-    if (!isCollapsed) {
-      members.forEach(ev => {
-        const initials = getInitials(ev.target_name || ev.target_id);
-        const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
-        const targetIdSafe = (ev.target_id || '').replace(/'/g, "\\'");
+    members.forEach(ev => {
+      const initials = getInitials(ev.target_name || ev.target_id);
+      const avColor = avatarCycleColors[colorIdx++ % avatarCycleColors.length];
+      const targetIdSafe = (ev.target_id || '').replace(/'/g, "\\'");
 
-        const evalChips = ev.evaluators.length > 0
-          ? ev.evaluators.map(e =>
-              `<span class="bdg bdg-blue" style="font-size:11px">${e.name || e.evaluator_id}</span>`
-            ).join('')
-          : '<span style="font-size:11px;color:var(--color-text-secondary)">— ไม่มีผู้ประเมิน —</span>';
+      const evalChips = ev.evaluators.length > 0
+        ? ev.evaluators.map(e =>
+            `<span class="bdg bdg-blue" style="font-size:11px">${e.name || e.evaluator_id}</span>`
+          ).join('')
+        : '<span style="font-size:11px;color:var(--color-text-secondary)">— ไม่มีผู้ประเมิน —</span>';
 
-        html += `
-          <div class="rrow" style="${ev.target_ignore ? 'opacity:.55' : ''}">
-            <div class="av av-sm ${avColor}">${initials}</div>
-            <div class="rmain">
-              <div class="rname">${ev.target_name || ev.target_id}</div>
-              <div class="rmeta">${ev.target_position || '—'}</div>
-              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${evalChips}</div>
-            </div>
-            <div style="align-self:center">
-              <button class="btn-detail" onclick="openEditEvalModal('${targetIdSafe}')">✏ แก้ไข</button>
-            </div>
-          </div>`;
-      });
-    }
+      html += `
+        <div class="rrow" style="${ev.target_ignore ? 'opacity:.55' : ''}">
+          <div class="av av-sm ${avColor}">${initials}</div>
+          <div class="rmain">
+            <div class="rname">${ev.target_name || ev.target_id}</div>
+            <div class="rmeta">${ev.target_position || '—'}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">${evalChips}</div>
+          </div>
+          <div style="align-self:center">
+            <button class="btn-detail" onclick="openEditEvalModal('${targetIdSafe}')">✏ แก้ไข</button>
+          </div>
+        </div>`;
+    });
+
+    html += `</div>`;
   });
   container.innerHTML = html;
 }
 
-function toggleEvalDeptCollapse(dept) {
+function toggleEvalDeptCollapse(idx) {
+  const dept = _evalDeptKeyMap[idx];
+  if (dept === undefined) return;
   if (!collapsedEvalDepts) collapsedEvalDepts = new Set();
-  if (collapsedEvalDepts.has(dept)) {
-    collapsedEvalDepts.delete(dept);
-  } else {
-    collapsedEvalDepts.add(dept);
-  }
-  _reRenderEvals();
+  const willCollapse = !collapsedEvalDepts.has(dept);
+  if (willCollapse) collapsedEvalDepts.add(dept); else collapsedEvalDepts.delete(dept);
+  const wrap = document.querySelector(`[data-eval-dept-wrap="${idx}"]`);
+  const icon = document.querySelector(`[data-eval-dept-icon="${idx}"]`);
+  _animateDeptWrap(wrap, willCollapse);
+  if (icon) icon.classList.toggle('rot', willCollapse);
 }
 
 function filterEvals(query) {
@@ -1155,7 +1219,10 @@ function showStatsScreen() {
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-users').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'none';
-  document.getElementById('sup-stats').style.display = 'block';
+  const el = document.getElementById('sup-stats');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-stats-mgmt');
   // set default month = current month
   const picker = document.getElementById('stats-month-picker');
   if (picker && !picker.value) {

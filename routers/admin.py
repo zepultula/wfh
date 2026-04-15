@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from database import get_db
+from auth import decode_access_token
 from pydantic import BaseModel
 from typing import Optional, List
 import re
@@ -13,17 +14,13 @@ router = APIRouter()
 def _require_super_admin(authorization: str):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    email = authorization.replace("Bearer ", "")
-    db = get_db()
-    doc = db.collection("users").document(email).get()
-    if not doc.exists:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    user = doc.to_dict()
-    level = user.get("level", 0)
-    role = user.get("role", "").lower()
+    token = authorization.removeprefix("Bearer ")
+    payload = decode_access_token(token)
+    level = payload.get("level", 0)
+    role = payload.get("role", "").lower()
     if not (level == 9 or 'admin' in role):
         raise HTTPException(status_code=403, detail="Forbidden: super admin only")
-    return db
+    return get_db()
 
 
 def _require_any_admin(authorization: str):
@@ -31,25 +28,22 @@ def _require_any_admin(authorization: str):
     Returns (db, user_data) tuple."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
-    email = authorization.replace("Bearer ", "")
-    db = get_db()
-    doc = db.collection("users").document(email).get()
-    if not doc.exists:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    user = doc.to_dict()
-    level = user.get("level", 0)
-    role = user.get("role", "").lower()
+    token = authorization.removeprefix("Bearer ")
+    payload = decode_access_token(token)
+    level = payload.get("level", 0)
+    role = payload.get("role", "").lower()
     if level == 0 and 'admin' not in role:
         raise HTTPException(status_code=403, detail="Forbidden: admin access required")
-    return db, user
+    return get_db(), payload
 
 
 def _get_visible_user_ids(db, user_data):
     """Return set of personal_ids this user can see.
-    Returns None for super admin (meaning 'all users')."""
+    Returns None for super admin (meaning 'all users').
+    user_data is a JWT payload dict — uses 'user_id' key for personal_id."""
     level = user_data.get("level", 0)
     role = user_data.get("role", "").lower()
-    personal_id = user_data.get("personal_id")
+    personal_id = user_data.get("user_id")  # JWT payload key
     is_super_admin = level == 9 or 'admin' in role
     if is_super_admin:
         return None  # None = see all

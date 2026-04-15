@@ -44,6 +44,19 @@
   </form>
 </div>
 
+<style>
+  #login-overlay {
+    position: fixed; inset: 0; background: #fff; z-index: 9999;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  }
+  #login-overlay .ov-spin {
+    width: 40px; height: 40px;
+    border: 3px solid #E6F1FB; border-top-color: #1059A3;
+    border-radius: 50%; animation: spin .75s linear infinite;
+  }
+  #login-overlay .ov-text { font-size: 14px; color: #555; }
+</style>
+
 <script>
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -53,8 +66,15 @@
     const submitBtn = e.target.querySelector('button[type="submit"]');
 
     errorDiv.style.display = 'none';
+
+    // แสดง spinner ในปุ่มระหว่าง API call
+    const originalHTML = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.style.opacity = '0.7';
+    submitBtn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;">'
+      + '<span class="ld-spin" style="width:18px;height:18px;border-width:2px;flex-shrink:0;"></span>'
+      + '<span>กำลังตรวจสอบ...</span></span>';
+
+    let loginSuccess = false;
 
     try {
       const res = await fetch('/api/login', {
@@ -62,9 +82,9 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      
+
       const data = await res.json();
-      
+
       if (!res.ok) {
         throw new Error(data.detail || 'การเข้าสู่ระบบล้มเหลว');
       }
@@ -74,16 +94,22 @@
       localStorage.setItem('user_role', data.user.role);
       localStorage.setItem('user_level', data.user.level);
 
+      loginSuccess = true;
+
+      // แสดง full-page overlay ก่อน redirect เพื่อให้ผู้ใช้รู้ว่าระบบกำลังโหลด
+      const overlay = document.createElement('div');
+      overlay.id = 'login-overlay';
+      overlay.innerHTML = '<div class="ov-spin"></div><div class="ov-text">กำลังเข้าสู่ระบบ...</div>';
+      document.body.appendChild(overlay);
+
       // Redirect based on role/level
       const roleStr = (data.user.role || '').toLowerCase();
       const isAdmin = data.user.level > 0 || roleStr.includes('admin') || roleStr.includes('ผู้ดูแลระบบ');
-      
-      if (!isAdmin) {
-        window.location.href = '/static/employee.html';
-      } else {
-        window.location.href = '/static/admin.html';
-      }
-      
+
+      setTimeout(() => {
+        window.location.href = isAdmin ? '/static/admin.html' : '/static/employee.html';
+      }, 80);
+
     } catch (err) {
       Swal.fire({
         icon: 'error',
@@ -93,8 +119,10 @@
         confirmButtonColor: '#1059A3'
       });
     } finally {
-      submitBtn.disabled = false;
-      submitBtn.style.opacity = '1';
+      if (!loginSuccess) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalHTML;
+      }
     }
   });
 </script>
