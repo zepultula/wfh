@@ -1,7 +1,11 @@
 from fastapi import APIRouter, HTTPException, Header
+from fastapi.responses import StreamingResponse
 from database import get_db
 from pydantic import BaseModel
 from typing import Optional, List
+import re
+import calendar
+from datetime import date
 
 router = APIRouter()
 
@@ -191,3 +195,231 @@ def migrate_evaluator_ids(authorization: str = Header(None)):
             doc.reference.update({'evaluator_ids': ids})
             count += 1
     return {"updated": count}
+
+
+# ── Monthly Stats ────────────────────────────────────────────────────────────
+
+def _compute_monthly_stats(db, month: str) -> dict:
+    """Compute per-user monthly statistics. month = 'YYYY-MM'"""
+    if not re.match(r'^\d{4}-\d{2}$', month):
+        raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM")
+
+    year, mon = int(month[:4]), int(month[5:7])
+    _, num_days = calendar.monthrange(year, mon)
+    weekdays = sum(1 for d in range(1, num_days + 1) if date(year, mon, d).weekday() < 5)
+
+    # Fetch all active users
+    users_map = {}
+    for doc in db.collection("users").stream():
+        u = doc.to_dict()
+        if u.get("ignore", 0) == 0:
+            pid = u.get("personal_id")
+            if pid:
+                users_map[pid] = {
+                    "personal_id": pid,
+                    "name": f"{u.get('firstname', '')} {u.get('lastname', '')}".strip(),
+                    "position": u.get("position", ""),
+                    "department": u.get("department", ""),
+                }
+
+    # Accumulate per-user stats from reports
+    accum = {
+        pid: {"days_submitted": 0, "total_progress": 0,
+              "wfh_days": 0, "onsite_days": 0, "hybrid_days": 0,
+              "total_tasks": 0, "done_tasks": 0, "problem_days": 0}
+        for pid in users_map
+    }
+
+    for doc in db.collection("reports").stream():
+        r = doc.to_dict()
+        if not r.get("timestamp", "").startswith(month):
+            continue
+        uid = r.get("user_id")
+        if uid not in accum:
+            continue
+        s = accum[uid]
+        s["days_submitted"] += 1
+        s["total_progress"] += r.get("progress", 0)
+        wm = r.get("work_mode", "").lower()
+        if wm == "wfh":
+            s["wfh_days"] += 1
+        elif wm == "onsite":
+            s["onsite_days"] += 1
+        elif wm == "hybrid":
+            s["hybrid_days"] += 1
+        tasks = r.get("tasks", [])
+        s["total_tasks"] += len(tasks)
+        s["done_tasks"] += sum(1 for t in tasks if t.get("status") == "done")
+        prob = r.get("problems", "-") or "-"
+        if prob.strip() not in ("-", ""):
+            s["problem_days"] += 1
+
+    users_list = []
+    for pid, uinfo in users_map.items():
+        s = accum[pid]
+        days = s["days_submitted"]
+        avg_prog = round(s["total_progress"] / days, 1) if days > 0 else 0
+        compliance = round(days / weekdays * 100, 1) if weekdays > 0 else 0
+        users_list.append({
+            **uinfo,
+            "days_submitted": days,
+            "compliance": compliance,
+            "avg_progress": avg_prog,
+            "wfh_days": s["wfh_days"],
+            "onsite_days": s["onsite_days"],
+            "hybrid_days": s["hybrid_days"],
+            "total_tasks": s["total_tasks"],
+            "done_tasks": s["done_tasks"],
+            "problem_days": s["problem_days"],
+        })
+
+    users_list.sort(key=lambda x: (x["department"], x["name"]))
+    return {"month": month, "calendar_days": num_days, "weekdays": weekdays, "users": users_list}
+
+
+@router.get("/stats")
+def get_stats(month: str, authorization: str = Header(None)):
+    """สถิติรายเดือน — ส่งคืน per-user stats จัดกลุ่มตาม department"""
+    db = _require_super_admin(authorization)
+    return _compute_monthly_stats(db, month)
+
+
+@router.get("/stats/export")
+def export_stats(month: str, authorization: str = Header(None)):
+    """Export สถิติรายเดือนเป็นไฟล์ Excel (.xlsx)"""
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    db = _require_super_admin(authorization)
+    data = _compute_monthly_stats(db, month)
+
+    # Thai month names
+    th_months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+                 "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    year_val, mon_val = int(month[:4]), int(month[5:7])
+    month_label = f"{th_months[mon_val]} {year_val + 543}"
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = f"สถิติ {month}"
+
+    # ── Styles ──
+    def side():
+        return Side(style="thin", color="CCCCCC")
+
+    def cell_border():
+        return Border(left=side(), right=side(), top=side(), bottom=side())
+
+    hdr_fill = PatternFill("solid", fgColor="1059A3")
+    dept_fill = PatternFill("solid", fgColor="E8EFF8")
+    green_fill = PatternFill("solid", fgColor="D4EDDA")
+    yellow_fill = PatternFill("solid", fgColor="FFF3CD")
+    red_fill = PatternFill("solid", fgColor="F8D7DA")
+    alt_fill = PatternFill("solid", fgColor="F9FAFB")
+
+    hdr_font = Font(bold=True, color="FFFFFF", size=10)
+    dept_font = Font(bold=True, color="1A3A6B", size=10)
+    body_font = Font(size=10)
+    center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # ── Title ──
+    ws.merge_cells("A1:N1")
+    title_cell = ws["A1"]
+    title_cell.value = f"สถิติการส่งรายงานประจำเดือน {month_label}"
+    title_cell.font = Font(bold=True, size=13, color="1059A3")
+    title_cell.alignment = center
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:N2")
+    sub_cell = ws["A2"]
+    sub_cell.value = (f"วันทำงาน (จันทร์–ศุกร์): {data['weekdays']} วัน  |  "
+                      f"ผู้ใช้งานทั้งหมด: {len(data['users'])} คน  |  "
+                      f"สร้างวันที่: {date.today().strftime('%d/%m/')+str(date.today().year+543)}")
+    sub_cell.font = Font(size=9, color="64748B")
+    sub_cell.alignment = left
+    ws.row_dimensions[2].height = 18
+
+    # ── Header row ──
+    headers = [
+        ("ลำดับ", 6), ("ชื่อ-สกุล", 24), ("ตำแหน่ง", 20), ("หน่วยงาน", 18),
+        ("ส่งรายงาน\n(วัน)", 10), ("วันทำงาน\n(วัน)", 10), ("Compliance\n(%)", 11),
+        ("Avg Progress\n(%)", 12), ("WFH\n(วัน)", 8), ("On-site\n(วัน)", 8),
+        ("Hybrid\n(วัน)", 8), ("งาน\n(ทั้งหมด)", 9), ("งาน\n(เสร็จ)", 9),
+        ("มีปัญหา\n(วัน)", 9),
+    ]
+    col_letters = [chr(65 + i) for i in range(len(headers))]
+    for i, (title, width) in enumerate(headers):
+        c = ws.cell(row=3, column=i + 1, value=title)
+        c.font = hdr_font
+        c.fill = hdr_fill
+        c.alignment = center
+        c.border = cell_border()
+        ws.column_dimensions[col_letters[i]].width = width
+    ws.row_dimensions[3].height = 32
+
+    # ── Data rows ──
+    row_num = 4
+    seq = 0
+
+    # Group by department
+    depts = {}
+    for u in data["users"]:
+        dept = u["department"] or "ไม่ระบุหน่วยงาน"
+        depts.setdefault(dept, []).append(u)
+
+    for dept, members in depts.items():
+        # Department header row
+        ws.merge_cells(f"A{row_num}:N{row_num}")
+        dc = ws.cell(row=row_num, column=1, value=f"  {dept}  ({len(members)} คน)")
+        dc.font = dept_font
+        dc.fill = dept_fill
+        dc.alignment = left
+        dc.border = cell_border()
+        ws.row_dimensions[row_num].height = 18
+        row_num += 1
+
+        for idx, u in enumerate(members):
+            seq += 1
+            fill = alt_fill if idx % 2 == 0 else PatternFill("solid", fgColor="FFFFFF")
+            comp = u["compliance"]
+            prog = u["avg_progress"]
+            comp_fill = green_fill if comp >= 80 else (yellow_fill if comp >= 50 else red_fill)
+            prog_fill = green_fill if prog >= 80 else (yellow_fill if prog >= 40 else red_fill)
+
+            row_data = [
+                seq, u["name"], u["position"], u["department"],
+                u["days_submitted"], data["weekdays"],
+                comp, prog,
+                u["wfh_days"], u["onsite_days"], u["hybrid_days"],
+                u["total_tasks"], u["done_tasks"], u["problem_days"],
+            ]
+            for col_idx, val in enumerate(row_data):
+                c = ws.cell(row=row_num, column=col_idx + 1, value=val)
+                c.font = body_font
+                c.border = cell_border()
+                c.alignment = left if col_idx in (1, 2, 3) else center
+                if col_idx == 6:  # compliance
+                    c.fill = comp_fill
+                elif col_idx == 7:  # avg progress
+                    c.fill = prog_fill
+                else:
+                    c.fill = fill
+
+            ws.row_dimensions[row_num].height = 16
+            row_num += 1
+
+    # Freeze header rows
+    ws.freeze_panes = "A4"
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    filename = f"stats_{month}.xlsx"
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

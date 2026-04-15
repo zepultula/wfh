@@ -25,6 +25,8 @@ async function initUser() {
       if (btn) btn.style.display = '';
       const btnEv = document.getElementById('btn-evals-mgmt');
       if (btnEv) btnEv.style.display = '';
+      const btnSt = document.getElementById('btn-stats-mgmt');
+      if (btnSt) btnSt.style.display = '';
     }
   } catch(e) {
     window.location.replace('/static/index.html');
@@ -152,6 +154,7 @@ document.getElementById('s-filters').addEventListener('click', e => {
 /* ── Detail view show/hide ── */
 function showDetail(reportId){
   document.getElementById('sup-list').style.display = 'none';
+  document.getElementById('sup-stats').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'block';
   if (reportId) loadReportDetail(reportId);
 }
@@ -549,6 +552,7 @@ function showUsersScreen() {
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'none';
+  document.getElementById('sup-stats').style.display = 'none';
   document.getElementById('sup-users').style.display = 'block';
   loadUserManagement();
 }
@@ -860,6 +864,7 @@ function showEvalsScreen() {
   document.getElementById('sup-list').style.display = 'none';
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-users').style.display = 'none';
+  document.getElementById('sup-stats').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'block';
   loadEvalManagement();
 }
@@ -1130,5 +1135,198 @@ async function saveEval() {
     _reRenderEvals();
   } catch(e) {
     Swal.fire({ icon:'error', title:'เกิดข้อผิดพลาด', text:'ไม่สามารถบันทึกได้', confirmButtonText:'ตกลง' });
+  }
+}
+
+// ── Monthly Stats ──────────────────────────────────────────────────────────
+
+let statsCurrentMonth = '';
+let collapsedStatsDepts = null; // null = ยังไม่ initialize
+let statsData = null;
+
+function _getDefaultMonth() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function showStatsScreen() {
+  document.getElementById('sup-list').style.display = 'none';
+  document.getElementById('sup-detail').style.display = 'none';
+  document.getElementById('sup-users').style.display = 'none';
+  document.getElementById('sup-evals').style.display = 'none';
+  document.getElementById('sup-stats').style.display = 'block';
+  // set default month = current month
+  const picker = document.getElementById('stats-month-picker');
+  if (picker && !picker.value) {
+    picker.value = _getDefaultMonth();
+  }
+  const month = picker ? picker.value : _getDefaultMonth();
+  loadStats(month);
+}
+
+function hideStatsScreen() {
+  document.getElementById('sup-stats').style.display = 'none';
+  document.getElementById('sup-list').style.display = 'block';
+}
+
+async function loadStats(month) {
+  if (!month) return;
+  statsCurrentMonth = month;
+  collapsedStatsDepts = null;
+  document.getElementById('stats-rows').innerHTML =
+    '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  // reset KPI
+  ['sk-users','sk-submitted','sk-compliance','sk-progress'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = '—';
+  });
+  try {
+    const res = await fetch(`/api/admin/stats?month=${encodeURIComponent(month)}`);
+    if (!res.ok) throw new Error('Forbidden');
+    statsData = await res.json();
+    renderStats(statsData);
+  } catch(e) {
+    document.getElementById('stats-rows').innerHTML =
+      '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่สามารถโหลดข้อมูลได้</div>';
+  }
+}
+
+function renderStats(data, isFiltered = false) {
+  const users = data.users;
+  const weekdays = data.weekdays;
+
+  // KPI
+  const totalUsers = users.length;
+  const totalSubmitted = users.reduce((s, u) => s + u.days_submitted, 0);
+  const avgCompliance = totalUsers > 0
+    ? Math.round(users.reduce((s, u) => s + u.compliance, 0) / totalUsers * 10) / 10
+    : 0;
+  const activeUsers = users.filter(u => u.days_submitted > 0);
+  const avgProgress = activeUsers.length > 0
+    ? Math.round(activeUsers.reduce((s, u) => s + u.avg_progress, 0) / activeUsers.length * 10) / 10
+    : 0;
+
+  const setKpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setKpi('sk-users', totalUsers);
+  setKpi('sk-submitted', totalSubmitted);
+  setKpi('sk-compliance', `${avgCompliance}%`);
+  setKpi('sk-progress', `${avgProgress}%`);
+
+  if (!users.length) {
+    document.getElementById('stats-rows').innerHTML =
+      '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">ไม่มีข้อมูลในเดือนนี้</div>';
+    return;
+  }
+
+  // Group by department
+  const groups = {};
+  users.forEach(u => {
+    const dept = u.department || 'ไม่ระบุหน่วยงาน';
+    if (!groups[dept]) groups[dept] = [];
+    groups[dept].push(u);
+  });
+
+  if (collapsedStatsDepts === null) {
+    collapsedStatsDepts = new Set(Object.keys(groups));
+  }
+
+  const compColor = v => v >= 80 ? '#D4EDDA;color:#1A5C28' : v >= 50 ? '#FFF3CD;color:#665200' : '#F8D7DA;color:#721C24';
+  const progColor = v => v >= 80 ? '#D4EDDA;color:#1A5C28' : v >= 40 ? '#FFF3CD;color:#665200' : '#F8D7DA;color:#721C24';
+
+  let html = `
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:760px">
+      <thead>
+        <tr style="background:#F3EEE8;border-bottom:1.5px solid #C9A96E">
+          <th style="padding:7px 10px;text-align:left;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">ชื่อ-สกุล / ตำแหน่ง</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">ส่งรายงาน<br><span style="font-weight:400;color:#8C7A5E">/ ${weekdays} วัน</span></th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">Compliance</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">Avg Progress</th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">รูปแบบทำงาน<br><span style="font-weight:400;color:#8C7A5E">WFH / On-site / Hybrid</span></th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">งานเสร็จ<br><span style="font-weight:400;color:#8C7A5E">/ ทั้งหมด</span></th>
+          <th style="padding:7px 8px;text-align:center;font-size:10px;color:#5D4A2E;font-weight:700;white-space:nowrap">มีปัญหา<br><span style="font-weight:400;color:#8C7A5E">(วัน)</span></th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  Object.entries(groups).forEach(([dept, members]) => {
+    const isCollapsed = !isFiltered && collapsedStatsDepts.has(dept);
+    const icon = isCollapsed ? '▶' : '▼';
+    const deptSafe = dept.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    html += `
+      <tr style="background:#F3EEE8;border-top:1px solid #DDD0C0;cursor:pointer;user-select:none"
+        onclick="toggleStatsDeptCollapse('${deptSafe}')">
+        <td colspan="7" style="padding:7px 12px">
+          <span style="font-size:9px;color:#8C7A5E;margin-right:5px">${icon}</span>
+          <span style="font-size:11px;font-weight:700;color:#5D4A2E">${dept}</span>
+          <span style="font-size:10px;color:#8C7A5E;margin-left:6px">${members.length} คน</span>
+        </td>
+      </tr>`;
+
+    if (!isCollapsed) {
+      members.forEach((u, idx) => {
+        const rowBg = idx % 2 === 0 ? '#FAFBFC' : '#FFFFFF';
+        const cc = compColor(u.compliance);
+        const pc = progColor(u.avg_progress);
+        html += `
+          <tr style="background:${rowBg};border-bottom:0.5px solid var(--color-border-tertiary)">
+            <td style="padding:8px 10px">
+              <div style="font-size:12px;font-weight:500;color:var(--color-text-primary)">${u.name}</div>
+              <div style="font-size:10px;color:var(--color-text-secondary);margin-top:1px">${u.position || '—'}</div>
+            </td>
+            <td style="padding:8px;text-align:center;font-size:12px;font-weight:600">${u.days_submitted}</td>
+            <td style="padding:8px;text-align:center">
+              <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${cc.split(';')[0]};${cc.split(';')[1]}">${u.compliance}%</span>
+            </td>
+            <td style="padding:8px;text-align:center">
+              <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700;background:${pc.split(';')[0]};${pc.split(';')[1]}">${u.avg_progress > 0 ? u.avg_progress + '%' : '—'}</span>
+            </td>
+            <td style="padding:8px;text-align:center;font-size:11px;color:var(--color-text-secondary)">
+              ${u.wfh_days > 0 ? `<span style="color:#0C447C">WFH ${u.wfh_days}</span>` : ''}
+              ${u.onsite_days > 0 ? `${u.wfh_days > 0 ? ' · ' : ''}<span style="color:#5D4A2E">On-site ${u.onsite_days}</span>` : ''}
+              ${u.hybrid_days > 0 ? `${(u.wfh_days + u.onsite_days) > 0 ? ' · ' : ''}<span style="color:#3C3489">Hybrid ${u.hybrid_days}</span>` : ''}
+              ${u.wfh_days + u.onsite_days + u.hybrid_days === 0 ? '—' : ''}
+            </td>
+            <td style="padding:8px;text-align:center;font-size:12px">
+              ${u.total_tasks > 0 ? `<span style="font-weight:600">${u.done_tasks}</span><span style="color:var(--color-text-secondary)"> / ${u.total_tasks}</span>` : '—'}
+            </td>
+            <td style="padding:8px;text-align:center;font-size:12px">
+              ${u.problem_days > 0 ? `<span style="color:#E24B4A;font-weight:600">${u.problem_days}</span>` : '<span style="color:#1D9E75">—</span>'}
+            </td>
+          </tr>`;
+      });
+    }
+  });
+
+  html += '</tbody></table></div>';
+  document.getElementById('stats-rows').innerHTML = html;
+}
+
+function toggleStatsDeptCollapse(dept) {
+  if (!collapsedStatsDepts) collapsedStatsDepts = new Set();
+  if (collapsedStatsDepts.has(dept)) {
+    collapsedStatsDepts.delete(dept);
+  } else {
+    collapsedStatsDepts.add(dept);
+  }
+  if (statsData) renderStats(statsData, false);
+}
+
+async function exportStatsExcel() {
+  const month = (document.getElementById('stats-month-picker') || {}).value || _getDefaultMonth();
+  try {
+    const res = await fetch(`/api/admin/stats/export?month=${encodeURIComponent(month)}`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stats_${month}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e) {
+    alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
   }
 }
