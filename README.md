@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v2.5.0
+## 🚀 คุณสมบัติเด่น (Features) - v2.5.1
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน พร้อมระบบ Auto-save
@@ -38,13 +38,17 @@
 - **Role-aware:** Super Admin เห็นทุกคน, Supervisor เห็นเฉพาะลูกน้องในสายบังคับบัญชา
 - **Export Excel:** ส่งออกไฟล์ `.xlsx` พร้อมสีสันและการจัดกลุ่มตามแผนก
 
+### 6. ส่งออกรายงานประจำวัน (Daily Report Export)
+- **Excel ละเอียด:** ส่งออกรายงานประจำวันเป็น `.xlsx` พร้อมรายการงาน สถานะ ปัญหา คอมเมนต์ และรายชื่อผู้ยังไม่ส่ง
+- **Loading Animation:** ปุ่มดาวน์โหลดแสดง Spinner และ Disabled ระหว่างรอข้อมูล
+
 ---
 
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
 
 ```text
 wfh/
-├── main.py                  # FastAPI server & entry point
+├── main.py                  # FastAPI server & entry point (ENV: APP_HOST, APP_PORT)
 ├── models.py                # Pydantic data models (Reports, Users, Auth)
 ├── database.py              # Firebase Admin SDK configuration (Singleton)
 ├── routers/
@@ -105,6 +109,13 @@ wfh/
    ```bash
    python main.py
    ```
+   หรือกำหนด Host/Port ผ่าน Environment Variables:
+   ```bash
+   set APP_HOST=0.0.0.0
+   set APP_PORT=8080
+   python main.py
+   ```
+   > Default: `0.0.0.0:8000` (รับทุก IP ที่เข้ามา)
 
 4. **เข้าใช้งาน:**
    เปิดเบราว์เซอร์ไปที่ [http://127.0.0.1:8000](http://127.0.0.1:8000)
@@ -122,12 +133,13 @@ wfh/
 | POST | `/api/admin/migrate/ignore` | อัปเกรดฐานข้อมูลโครงสร้างใหม่ |
 | GET | `/api/admin/stats?month=YYYY-MM` | สถิติรายเดือน (Admin Level 1+, กรองตามสิทธิ์) |
 | GET | `/api/admin/stats/export?month=YYYY-MM` | ส่งออก Excel สถิติรายเดือน (Admin Level 1+) |
+| GET | `/api/admin/reports/export?date=YYYY-MM-DD` | ส่งออก Excel รายงานประจำวันละเอียด (Admin Level 1+) |
 
 > ดูรายละเอียด API ทั้งหมดได้ที่ [API_DOCS.md](API_DOCS.md)
 
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 2.5.0
+- **เวอร์ชัน:** 2.5.1
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

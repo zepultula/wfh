@@ -144,4 +144,10 @@ def index():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    #? ดึงค่าจาก Environment Variables ถ้าไม่มีให้ใช้ค่า Default
+    #? บนเซิร์ฟเวอร์จริง '0.0.0.0' คือการยอมรับทุก IP ที่วิ่งเข้ามาหาเครื่องนี้
+    host_ip = os.getenv("APP_HOST", "0.0.0.0") 
+    port_num = int(os.getenv("APP_PORT", 8000))
+    
+    print(f"🚀 เริ่มรันระบบที่ {host_ip}:{port_num} นะคะนายท่าน!")
+    uvicorn.run("main:app", host=host_ip, port=port_num, reload=False)
