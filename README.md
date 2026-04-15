@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v2.0.0
+## 🚀 คุณสมบัติเด่น (Features) - v2.5.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน พร้อมระบบ Auto-save
@@ -18,7 +18,7 @@
 - **Secure Login:** ระบบ Login ด้วย Email และ Password พร้อม Token-based Authentication
 - **Role-based Access Control (RBAC):**
   - **Level 0 (Employee):** ดูและบันทึกรายงานของตนเอง
-  - **Level 1-3 (Supervisor):** ดูรายงานของตนเองและลูกน้องในทีมตามสายบังคับบัญชา
+  - **Level 1-3 (Supervisor):** ดูรายงานของตนเองและลูกน้องในทีมตามสายบังคับบัญชา + ดูสถิติรายเดือนและส่งออก Excel (เฉพาะลูกน้อง)
   - **Level 9 (Super Admin):** จัดการผู้ใช้และดูรายงานของพนักงานทุกคนในระบบ
 
 ### 3. แดชบอร์ดสรุปผล (Admin Dashboard)
@@ -31,6 +31,12 @@
 - **Full CRUD:** เพิ่ม, แก้ไข และลบข้อมูลพนักงาน (สำหรับ Super Admin)
 - **Ignore Toggle:** สลับสถานะการแสดงผลพนักงานได้ทันทีจากหน้าตาราง
 - **Data Migration:** ระบบ Migrate ข้อมูลอัตโนมัติเพื่อรองรับฟีเจอร์ใหม่ๆ เช่น `ignore` field และ `evaluator_ids`
+
+### 5. สถิติรายเดือน (Monthly Stats) — สำหรับ Admin ทุกระดับ
+- **KPI Dashboard:** แสดงจำนวนผู้ใช้, คน-วันที่ส่ง, Compliance% และ Avg Progress%
+- **Per-user Stats:** ตารางแบ่งกลุ่มตามแผนก พร้อมรูปแบบทำงาน (WFH/On-site/Hybrid) และจำนวนงานที่เสร็จ
+- **Role-aware:** Super Admin เห็นทุกคน, Supervisor เห็นเฉพาะลูกน้องในสายบังคับบัญชา
+- **Export Excel:** ส่งออกไฟล์ `.xlsx` พร้อมสีสันและการจัดกลุ่มตามแผนก
 
 ---
 
@@ -114,12 +120,14 @@ wfh/
 | POST | `/api/reports/` | สร้าง/อัปเดตรายงาน |
 | GET | `/api/admin/users` | ดึงรายชื่อพนักงานทั้งหมด (Admin Only) |
 | POST | `/api/admin/migrate/ignore` | อัปเกรดฐานข้อมูลโครงสร้างใหม่ |
+| GET | `/api/admin/stats?month=YYYY-MM` | สถิติรายเดือน (Admin Level 1+, กรองตามสิทธิ์) |
+| GET | `/api/admin/stats/export?month=YYYY-MM` | ส่งออก Excel สถิติรายเดือน (Admin Level 1+) |
 
 > ดูรายละเอียด API ทั้งหมดได้ที่ [API_DOCS.md](API_DOCS.md)
 
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 2.0.0
+- **เวอร์ชัน:** 2.5.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

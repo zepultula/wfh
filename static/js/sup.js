@@ -19,15 +19,16 @@ async function initUser() {
     document.getElementById('nb-av').textContent = getInitials(currentUser.name);
     document.getElementById('nb-name').textContent = currentUser.name;
     document.getElementById('nb-role').textContent = currentUser.role;
-    // แสดงปุ่มจัดการผู้ใช้สำหรับ super admin
+    // แสดงปุ่มจัดการผู้ใช้และสายบังคับบัญชาสำหรับ super admin เท่านั้น
     if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
       const btn = document.getElementById('btn-users-mgmt');
       if (btn) btn.style.display = '';
       const btnEv = document.getElementById('btn-evals-mgmt');
       if (btnEv) btnEv.style.display = '';
-      const btnSt = document.getElementById('btn-stats-mgmt');
-      if (btnSt) btnSt.style.display = '';
     }
+    // แสดงปุ่มสถิติสำหรับ admin ทุก level (level 1+)
+    const btnSt = document.getElementById('btn-stats-mgmt');
+    if (btnSt) btnSt.style.display = '';
   } catch(e) {
     window.location.replace('/static/index.html');
   }
@@ -642,7 +643,7 @@ function renderUserTable(users, isFiltered = false) {
             </div>
             <div style="display:flex;flex-direction:column;gap:5px;align-self:center">
               <button class="btn-detail" onclick="openEditUserModal('${emailSafe}')">✏ แก้ไข</button>
-              <button class="btn-detail" style="color:#e24b4a;border-color:#ffd0d0"
+              <button class="btn-detail btn-danger"
                 onclick="confirmDeleteUser('${emailSafe}','${nameSafe}')">ลบ</button>
             </div>
           </div>`;

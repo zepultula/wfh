@@ -26,6 +26,42 @@ def _require_super_admin(authorization: str):
     return db
 
 
+def _require_any_admin(authorization: str):
+    """Authenticate any admin-level user (level >= 1 or role contains 'admin').
+    Returns (db, user_data) tuple."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    email = authorization.replace("Bearer ", "")
+    db = get_db()
+    doc = db.collection("users").document(email).get()
+    if not doc.exists:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user = doc.to_dict()
+    level = user.get("level", 0)
+    role = user.get("role", "").lower()
+    if level == 0 and 'admin' not in role:
+        raise HTTPException(status_code=403, detail="Forbidden: admin access required")
+    return db, user
+
+
+def _get_visible_user_ids(db, user_data):
+    """Return set of personal_ids this user can see.
+    Returns None for super admin (meaning 'all users')."""
+    level = user_data.get("level", 0)
+    role = user_data.get("role", "").lower()
+    personal_id = user_data.get("personal_id")
+    is_super_admin = level == 9 or 'admin' in role
+    if is_super_admin:
+        return None  # None = see all
+    allowed = {personal_id}  # always include self
+    if 1 <= level <= 3:
+        for e in db.collection("evaluations") \
+                    .where("evaluator_ids", "array_contains", personal_id) \
+                    .stream():
+            allowed.add(e.to_dict().get("target_id"))
+    return allowed
+
+
 class UserCreate(BaseModel):
     personal_id: str
     firstname: str
@@ -199,8 +235,10 @@ def migrate_evaluator_ids(authorization: str = Header(None)):
 
 # ── Monthly Stats ────────────────────────────────────────────────────────────
 
-def _compute_monthly_stats(db, month: str) -> dict:
-    """Compute per-user monthly statistics. month = 'YYYY-MM'"""
+def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
+    """Compute per-user monthly statistics. month = 'YYYY-MM'.
+    If allowed_user_ids is a set, only include those users.
+    If None, include all active users (super admin)."""
     if not re.match(r'^\d{4}-\d{2}$', month):
         raise HTTPException(status_code=400, detail="Invalid month format. Use YYYY-MM")
 
@@ -208,13 +246,15 @@ def _compute_monthly_stats(db, month: str) -> dict:
     _, num_days = calendar.monthrange(year, mon)
     weekdays = sum(1 for d in range(1, num_days + 1) if date(year, mon, d).weekday() < 5)
 
-    # Fetch all active users
+    # Fetch active users (filtered by allowed_user_ids if provided)
     users_map = {}
     for doc in db.collection("users").stream():
         u = doc.to_dict()
         if u.get("ignore", 0) == 0:
             pid = u.get("personal_id")
             if pid:
+                if allowed_user_ids is not None and pid not in allowed_user_ids:
+                    continue
                 users_map[pid] = {
                     "personal_id": pid,
                     "name": f"{u.get('firstname', '')} {u.get('lastname', '')}".strip(),
@@ -279,20 +319,24 @@ def _compute_monthly_stats(db, month: str) -> dict:
 
 @router.get("/stats")
 def get_stats(month: str, authorization: str = Header(None)):
-    """สถิติรายเดือน — ส่งคืน per-user stats จัดกลุ่มตาม department"""
-    db = _require_super_admin(authorization)
-    return _compute_monthly_stats(db, month)
+    """สถิติรายเดือน — ส่งคืน per-user stats จัดกลุ่มตาม department
+    Super admin เห็นทุกคน, supervisor เห็นเฉพาะลูกน้องในสายบังคับบัญชา"""
+    db, user_data = _require_any_admin(authorization)
+    allowed = _get_visible_user_ids(db, user_data)
+    return _compute_monthly_stats(db, month, allowed)
 
 
 @router.get("/stats/export")
 def export_stats(month: str, authorization: str = Header(None)):
-    """Export สถิติรายเดือนเป็นไฟล์ Excel (.xlsx)"""
+    """Export สถิติรายเดือนเป็นไฟล์ Excel (.xlsx)
+    Super admin ได้ทุกคน, supervisor ได้เฉพาะลูกน้อง"""
     import io
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
-    db = _require_super_admin(authorization)
-    data = _compute_monthly_stats(db, month)
+    db, user_data = _require_any_admin(authorization)
+    allowed = _get_visible_user_ids(db, user_data)
+    data = _compute_monthly_stats(db, month, allowed)
 
     # Thai month names
     th_months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",

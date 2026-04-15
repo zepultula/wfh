@@ -196,8 +196,10 @@ textarea{resize:none;min-height:60px}
 .ppct{font-size:13px;font-weight:500;margin-bottom:3px}
 .pbar2{height:4px;background:var(--color-background-secondary);border-radius:2px;overflow:hidden}
 .pfill2{height:100%;border-radius:2px}
-.btn-detail{font-size:11px;color:#0C447C;background:none;border:0.5px solid var(--color-border-secondary);border-radius:6px;padding:3px 8px;cursor:pointer;margin-top:5px;font-family:var(--font-sans)}
-.btn-detail:hover{background:var(--color-background-secondary)}
+.btn-detail{font-size:11px;color:#fff;background:linear-gradient(135deg,#1059A3 0%,#0C447C 100%);border:none;border-radius:6px;padding:5px 12px;cursor:pointer;margin-top:5px;font-family:var(--font-sans);font-weight:500;letter-spacing:.02em;box-shadow:0 2px 6px rgba(12,68,124,0.18);transition:all .2s ease}
+.btn-detail:hover{transform:translateY(-1px);box-shadow:0 4px 10px rgba(12,68,124,0.28);background:linear-gradient(135deg,#1268B8 0%,#0E5090 100%)}
+.btn-detail.btn-danger{background:linear-gradient(135deg,#E24B4A 0%,#C0392B 100%);box-shadow:0 2px 6px rgba(192,57,43,0.18)}
+.btn-detail.btn-danger:hover{background:linear-gradient(135deg,#E85D5C 0%,#D44233 100%);box-shadow:0 4px 10px rgba(192,57,43,0.28)}
 
 /* ── comment thread ── */
 .cthread{margin-bottom:1rem}
