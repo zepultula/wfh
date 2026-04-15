@@ -8,7 +8,7 @@ from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from routers import reports, admin
-from models import LoginRequest, UserInfo
+from models import LoginRequest, UserInfo, PasswordUpdateRequest
 from auth import create_access_token, get_current_user
 import os
 from contextlib import asynccontextmanager
@@ -87,6 +87,32 @@ def me(current_user: dict = Depends(get_current_user)):
         "agency": current_user.get("agency", ""),
         "level": current_user.get("level", 0),
     }
+
+#? API สำหรับเปลี่ยนรหัสผ่านของผู้ใช้ปัจจุบัน
+@app.post("/api/me/password")
+def update_my_password(req: PasswordUpdateRequest, current_user: dict = Depends(get_current_user)):
+    """Update current user password in Firestore"""
+    email = current_user.get("sub")
+    if not email:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    if req.new_password != req.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+        
+    if len(req.new_password) < 4:
+        raise HTTPException(status_code=400, detail="Password must be at least 4 characters long")
+
+    db = get_db()
+    user_ref = db.collection("users").document(email)
+    
+    if not user_ref.get().exists:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    user_ref.update({
+        "password": req.new_password
+    })
+    
+    return {"status": "success", "message": "Password updated successfully"}
 
 #? API สำหรับดึงรายชื่อผู้ใช้งาน (คัดกรองตามสิทธิ์ Role-Based Access Control)
 @app.get("/api/users")
@@ -176,5 +202,5 @@ if __name__ == "__main__":
     host_ip = os.getenv("APP_HOST", "0.0.0.0")
     port_num = int(os.getenv("APP_PORT", 8000))
 
-    print(f"🚀 เริ่มรันระบบที่ {host_ip}:{port_num} เรียบร้อย!")
+    print(f"Starting server at {host_ip}:{port_num}...")
     uvicorn.run("main:app", host=host_ip, port=port_num, reload=False)

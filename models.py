@@ -69,5 +69,10 @@ class ReportOut(ReportBase):
     submit_time: str
     comments: List[CommentModel] = []
 
+#? โครงสร้างข้อมูลสำหรับขอเปลี่ยนรหัสผ่าน
+class PasswordUpdateRequest(BaseModel):
+    new_password: str
+    confirm_password: str
+
 #todo เพิ่มระบบ Data Validation (เช่น progress ต้องอยู่ระหว่าง 0-100 หรือตรวจสอบอีเมลที่ถูกต้อง) ในอนาคต
 #! ในปัจจุบันระบบยังไม่ได้จำกัดความยาวของ String ในฟิลด์ต่างๆ อาจทำให้เกิดปัญหาถ้าส่งข้อมูลยาวเกินไปลงใน Firestore

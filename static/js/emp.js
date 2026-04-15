@@ -330,6 +330,11 @@ async function initializeApp() {
         //? หากไม่มีสิทธิ์ ให้ซ่อนปุ่ม Admin ไปเลยเพื่อความสวยงามและปลอดภัย
         goAdminBtn.style.display = 'none';
     }
+    
+    const goAdminMenu = document.getElementById('goAdminMenu');
+    if (isSuperAdmin && goAdminMenu) {
+        goAdminMenu.style.display = 'flex';
+    }
 
     //? อัปเดตสถานะการนำทางวันที่ (Today/Historical) และโหลดรายงานฉบับปัจจุบัน
     updateDateNav();
@@ -348,6 +353,148 @@ window.doLogout = function() {
         localStorage.setItem('user_name', currentUser.name);
     }
     window.location.replace('/logout');
+};
+
+/* ── ระบบจัดการ Profile และรหัสผ่าน (User Profile & Password) ── */
+
+//? เปิด/ปิด เมนู Dropdown ของผู้ใช้
+window.toggleUserMenu = function(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('um-dropdown');
+    const btn = document.querySelector('.user-menu-btn');
+    if (dropdown) {
+        const isOpen = dropdown.classList.contains('on');
+        dropdown.classList.toggle('on', !isOpen);
+        if (btn) btn.classList.toggle('active', !isOpen);
+    }
+};
+
+//? ปิด Dropdown เมื่อคลิกที่อื่นบนหน้าจอ
+document.addEventListener('click', () => {
+    const dropdown = document.getElementById('um-dropdown');
+    const btn = document.querySelector('.user-menu-btn');
+    if (dropdown && dropdown.classList.contains('on')) {
+        dropdown.classList.remove('on');
+        if (btn) btn.classList.remove('active');
+    }
+});
+
+//? แสดง Modal ข้อมูลส่วนตัว และเติมข้อมูลปัจจุบัน
+window.showProfileModal = function() {
+    if (!currentUser) return;
+    
+    //? เติมข้อมูลลงในฟิลด์ที่แสดงผล (Read-only)
+    document.getElementById('p-name').textContent = currentUser.name || '—';
+    document.getElementById('p-email').textContent = currentUser.email || '—';
+    document.getElementById('p-id').textContent = currentUser.user_id || '—';
+    document.getElementById('p-role').textContent = currentUser.role || '—';
+    document.getElementById('p-level').textContent = currentUser.level || '0';
+    document.getElementById('p-dept').textContent = currentUser.department + (currentUser.agency ? ` / ${currentUser.agency}` : '');
+    
+    //? ล้างค่าในช่องกรอกรหัสผ่านและข้อความแจ้งเตือนทุกครั้งที่เปิด
+    document.getElementById('p-new-pw').value = '';
+    document.getElementById('p-conf-pw').value = '';
+    const msg = document.getElementById('pw-match-msg');
+    if (msg) {
+        msg.textContent = '';
+        msg.className = 'validation-msg';
+    }
+    
+    document.getElementById('profile-modal').classList.add('on');
+};
+
+window.closeProfileModal = function() {
+    document.getElementById('profile-modal').classList.remove('on');
+};
+
+//? ตรวจสอบการจับคู่ของรหัสผ่านแบบ Real-time
+window.validatePasswordMatch = function() {
+    const newPw = document.getElementById('p-new-pw').value;
+    const confPw = document.getElementById('p-conf-pw').value;
+    const msg = document.getElementById('pw-match-msg');
+    
+    if (!newPw && !confPw) {
+        msg.textContent = '';
+        msg.className = 'validation-msg';
+        return;
+    }
+    
+    if (newPw === confPw) {
+        msg.textContent = '✓ รหัสผ่านตรงกัน';
+        msg.className = 'validation-msg success';
+    } else {
+        msg.textContent = '✗ รหัสผ่านยังไม่ตรงกัน';
+        msg.className = 'validation-msg error';
+    }
+};
+
+//? ฟังก์ชันส่งคำขอเปลี่ยนรหัสผ่าน
+window.updatePassword = function() {
+    const newPw = document.getElementById('p-new-pw').value.trim();
+    const confPw = document.getElementById('p-conf-pw').value.trim();
+    
+    //? 1. ตรวจสอบเงื่อนไขเบื้องต้นก่อนส่ง API
+    if (!newPw) {
+        Swal.fire({ icon: 'warning', title: 'กรุณากรอกรหัสผ่านใหม่', confirmButtonColor: '#1059A3' });
+        return;
+    }
+    if (newPw.length < 4) {
+        Swal.fire({ icon: 'warning', title: 'รหัสผ่านต้องมีอย่างน้อย 4 ตัวอักษร', confirmButtonColor: '#1059A3' });
+        return;
+    }
+    if (newPw !== confPw) {
+        Swal.fire({ icon: 'error', title: 'รหัสผ่านไม่ตรงกัน', text: 'กรุณาตรวจสอบการยืนยันรหัสผ่านอีกครั้ง', confirmButtonColor: '#1059A3' });
+        return;
+    }
+    
+    //? 2. ยืนยันการดำเนินการผ่าน SweetAlert2
+    Swal.fire({
+        title: 'ยืนยันการแก้ไข?',
+        text: 'เมื่อเปลี่ยนรหัสผ่านแล้ว ระบบจะทำการออกจากระบบเพื่อให้คุณเข้าสู่ระบบใหม่ด้วยรหัสผ่านใหม่',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#1059A3',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            const saveBtn = document.getElementById('btn-save-pw');
+            const originalText = saveBtn.textContent;
+            
+            try {
+                //? แสดงสถานะ Loading ระหว่างเรียก API
+                saveBtn.disabled = true;
+                saveBtn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:8px"></span> กำลังบันทึก...';
+
+                const res = await fetch('/api/me/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ new_password: newPw, confirm_password: confPw })
+                });
+
+                if (res.ok) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ!',
+                        text: 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว ระบบกำลังพาคุณไปหน้าออกจากระบบ',
+                        confirmButtonColor: '#1D9E75'
+                    }).then(() => {
+                        window.doLogout(); //? ออกจากระบบทันทีเพื่อความปลอดภัย
+                    });
+                } else {
+                    const err = await res.json();
+                    Swal.fire({ icon: 'error', title: 'ล้มเหลว', text: err.detail || 'เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน', confirmButtonColor: '#1059A3' });
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = originalText;
+                }
+            } catch (e) {
+                Swal.fire({ icon: 'error', title: 'ข้อผิดพลาดเครือข่าย', text: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', confirmButtonColor: '#1059A3' });
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalText;
+            }
+        }
+    });
 };
 
 /* ── จัดการลำดับงาน (Task management) ── */
