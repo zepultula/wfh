@@ -96,6 +96,10 @@ class PlanTask(BaseModel):
     id: int
     title: str
     description: Optional[str] = ""
+    goal: Optional[str] = ""        #? เป้าหมายของงานนี้คืออะไร
+    output: Optional[str] = ""      #? ผลผลิต/สิ่งที่ส่งมอบ (deliverable)
+    kpi_name: Optional[str] = ""    #? ชื่อตัวชี้วัด (KPI metric name)
+    kpi_target: Optional[str] = ""  #? ค่าเป้าหมายของตัวชี้วัด
     approved: bool = False
     approved_by: Optional[str] = ""
     approved_at: Optional[str] = ""

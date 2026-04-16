@@ -2080,20 +2080,36 @@ function renderPlansReview(plans) {
       if (!tasks.length) return;
       const d = new Date(dateStr + 'T00:00:00');
       const dateLabel = `${dayLabels[di]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
-      let tasksHtml = tasks.map((t, i) => `
+      let tasksHtml = tasks.map((t, i) => {
+        const isApproved = t.approved === true;
+        const isRejected = !t.approved && !!t.approved_by;
+        const byText = t.approved_by
+          ? `<span style="font-size:11px;color:${isApproved ? '#388E3C' : '#C62828'};align-self:center">โดย ${escHtmlSup(t.approved_by)}</span>`
+          : '';
+        return `
         <div class="plan-task-row">
           <span class="plan-task-num">${i+1}</span>
           <div class="plan-task-body">
+            <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:1px">ชื่องาน</div>
             <div style="font-size:13px;font-weight:500">${escHtmlSup(t.title)}</div>
-            ${t.description ? `<div style="font-size:12px;color:var(--color-text-secondary)">${escHtmlSup(t.description)}</div>` : ''}
-            <span class="plan-task-approved ${t.approved ? 'yes' : 'no'}"
-                  onclick="approveTask('${plan.id}','${dateStr}',${t.id},${!t.approved},this)">
-              ${t.approved
-                ? `✓ อนุมัติแล้ว${t.approved_by ? ` โดย ${escHtmlSup(t.approved_by)}` : ''}`
-                : '○ รออนุมัติ'}
-            </span>
+            ${t.description ? `<div style="font-size:12px;margin-top:4px"><span style="color:var(--color-text-secondary)">คำอธิบายงาน:</span> ${escHtmlSup(t.description)}</div>` : ''}
+            ${t.goal   ? `<div style="font-size:12px;margin-top:3px"><span style="color:var(--color-text-secondary)">เป้าหมาย:</span> ${escHtmlSup(t.goal)}</div>` : ''}
+            ${t.output ? `<div style="font-size:12px"><span style="color:var(--color-text-secondary)">ผลผลิต:</span> ${escHtmlSup(t.output)}</div>` : ''}
+            ${(t.kpi_name || t.kpi_target) ? `
+            <div style="font-size:12px;display:flex;gap:12px;flex-wrap:wrap">
+              ${t.kpi_name   ? `<span><span style="color:var(--color-text-secondary)">ตัวชี้วัด:</span> ${escHtmlSup(t.kpi_name)}</span>` : ''}
+              ${t.kpi_target ? `<span><span style="color:var(--color-text-secondary)">ค่าเป้าหมาย:</span> ${escHtmlSup(t.kpi_target)}</span>` : ''}
+            </div>` : ''}
+            <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">
+              <button class="plan-approval-btn${isApproved ? ' apt-active' : ''}"
+                      onclick="approveTask('${plan.id}','${dateStr}',${t.id},true,this)">✓ อนุมัติ</button>
+              <button class="plan-approval-btn${isRejected ? ' rej-active' : ''}"
+                      onclick="approveTask('${plan.id}','${dateStr}',${t.id},false,this)">✗ ไม่อนุมัติ</button>
+              ${byText}
+            </div>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
       daysHtml += `
         <div style="margin-bottom:.75rem">
           <div class="plan-day-hd" style="margin-bottom:.35rem">${dateLabel}</div>
@@ -2119,34 +2135,50 @@ function escHtmlSup(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-//? อนุมัติหรือยกเลิกงานในแผน — optimistic update (อัปเดต DOM ทันที ไม่ต้อง reload ทั้งหน้า)
-async function approveTask(planId, date, taskId, newApproved, el) {
+//? อนุมัติหรือไม่อนุมัติงานในแผน — optimistic update (อัปเดต DOM ทันที ไม่ต้อง reload ทั้งหน้า)
+async function approveTask(planId, date, taskId, approved, btn) {
+  const container   = btn.closest('div');
+  const [aptBtn, rejBtn] = container.querySelectorAll('.plan-approval-btn');
+  const bySpan      = container.querySelector('span[style*="align-self"]');
+
   //? บันทึกสถานะเดิมไว้ก่อน เพื่อ revert ถ้า API fail
-  const prevClass   = el.className;
-  const prevHtml    = el.innerHTML;
-  const prevOnclick = el.onclick;
+  const prevAptClass = aptBtn.className;
+  const prevRejClass = rejBtn.className;
+  const prevByHtml   = bySpan ? bySpan.outerHTML : '';
+
+  //? ป้องกันกดซ้ำระหว่างรอ API
+  aptBtn.disabled = rejBtn.disabled = true;
 
   //? อัปเดต UI ทันที (optimistic)
-  el.className = `plan-task-approved ${newApproved ? 'yes' : 'no'}`;
-  el.innerHTML  = newApproved
-    ? `✓ อนุมัติแล้ว${currentUser && currentUser.name ? ` โดย ${escHtmlSup(currentUser.name)}` : ''}`
-    : '○ รออนุมัติ';
-  el.onclick = null; //! ป้องกันกดซ้ำระหว่างรอ API
+  aptBtn.className = `plan-approval-btn${approved ? ' apt-active' : ''}`;
+  rejBtn.className = `plan-approval-btn${!approved ? ' rej-active' : ''}`;
+  const byName = currentUser && currentUser.name ? escHtmlSup(currentUser.name) : '';
+  if (bySpan) {
+    bySpan.style.color = approved ? '#388E3C' : '#C62828';
+    bySpan.textContent = byName ? `โดย ${byName}` : '';
+  } else if (byName) {
+    const s = document.createElement('span');
+    s.style.cssText = `font-size:11px;color:${approved ? '#388E3C' : '#C62828'};align-self:center`;
+    s.textContent = `โดย ${byName}`;
+    container.appendChild(s);
+  }
 
   try {
     const res = await fetch(`/api/plans/${planId}/approve`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, task_id: taskId, approved: newApproved })
+      body: JSON.stringify({ date, task_id: taskId, approved })
     });
     if (!res.ok) throw new Error();
-    //? สำเร็จ — เปิด onclick ใหม่พร้อม toggle state
-    el.onclick = () => approveTask(planId, date, taskId, !newApproved, el);
   } catch(e) {
     //! fail — คืนค่าเดิมทั้งหมด
-    el.className = prevClass;
-    el.innerHTML  = prevHtml;
-    el.onclick    = prevOnclick;
+    aptBtn.className = prevAptClass;
+    rejBtn.className = prevRejClass;
+    const newBy = container.querySelector('span[style*="align-self"]');
+    if (newBy && !prevByHtml) newBy.remove();
+    else if (newBy && prevByHtml) newBy.outerHTML = prevByHtml;
     Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถอัปเดตสถานะการอนุมัติได้', confirmButtonColor: '#1059A3' });
+  } finally {
+    aptBtn.disabled = rejBtn.disabled = false;
   }
 }

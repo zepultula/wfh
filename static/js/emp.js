@@ -1001,12 +1001,38 @@ function renderPlanDays(planData, weekStart) {
         : isRejected
         ? `<span class="plan-task-approved no" style="font-size:11px;cursor:default;background:#FFEBEE;color:#C62828">✗ ไม่อนุมัติ</span>`
         : '';
+      const _lk = isApproved ? 'readonly' : '';
+      const _ls = isApproved ? ';background:#F0F8FF;cursor:default' : '';
       tasksHtml += `
-        <div class="plan-input-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" data-task-id="${t.id}">
+        <div class="plan-input-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" data-task-id="${t.id}"${isApproved ? ' data-approved="1"' : ''}>
           <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${i+1}</span>
-          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-            <input type="text" class="inp plan-task-title" value="${escHtml(t.title)}" placeholder="ชื่องาน..." style="font-size:13px${isApproved ? ';background:#F0F8FF;cursor:default' : ''}" ${isApproved ? 'readonly' : ''}>
-            <input type="text" class="inp plan-task-desc" value="${escHtml(t.description||'')}" placeholder="คำอธิบาย (ไม่บังคับ)..." style="font-size:12px">
+          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+            <div>
+              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ชื่องาน <span style="color:#e74c3c">*</span></label>
+              <input type="text" class="inp plan-task-title" value="${escHtml(t.title)}" placeholder="ชื่องาน..." style="font-size:13px${_ls}" ${_lk}>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">เป้าหมาย <span style="color:#e74c3c">*</span></label>
+              <input type="text" class="inp plan-task-goal" value="${escHtml(t.goal||'')}" placeholder="เป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ผลผลิต <span style="color:#e74c3c">*</span></label>
+              <input type="text" class="inp plan-task-output" value="${escHtml(t.output||'')}" placeholder="ผลผลิต..." style="font-size:12px${_ls}" ${_lk}>
+            </div>
+            <div class="plan-kpi-row">
+              <div>
+                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ตัวชี้วัด (KPI) <span style="color:#e74c3c">*</span></label>
+                <input type="text" class="inp plan-task-kpi-name" value="${escHtml(t.kpi_name||'')}" placeholder="ตัวชี้วัด (KPI)..." style="font-size:12px${_ls}" ${_lk}>
+              </div>
+              <div>
+                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ค่าเป้าหมาย <span style="color:#e74c3c">*</span></label>
+                <input type="text" class="inp plan-task-kpi-target" value="${escHtml(t.kpi_target||'')}" placeholder="ค่าเป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">คำอธิบายเพิ่มเติม</label>
+              <input type="text" class="inp plan-task-desc" value="${escHtml(t.description||'')}" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)..." style="font-size:12px${_ls}" ${_lk}>
+            </div>
             ${approvalBadge}
           </div>
           <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px${isApproved ? ';opacity:0.3;pointer-events:none' : ''}" ${isApproved ? 'disabled' : ''}>${trashSvg}</button>
@@ -1032,9 +1058,33 @@ function addPlanTaskRow(btn) {
   row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:flex-start';
   row.innerHTML = `
     <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${count+1}</span>
-    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
-      <input type="text" class="inp plan-task-title" placeholder="ชื่องาน..." style="font-size:13px">
-      <input type="text" class="inp plan-task-desc" placeholder="คำอธิบาย (ไม่บังคับ)..." style="font-size:12px">
+    <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+      <div>
+        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ชื่องาน <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-title" placeholder="ชื่องาน..." style="font-size:13px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">เป้าหมาย <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-goal" placeholder="เป้าหมาย..." style="font-size:12px">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ผลผลิต <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-output" placeholder="ผลผลิต..." style="font-size:12px">
+      </div>
+      <div class="plan-kpi-row">
+        <div>
+          <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ตัวชี้วัด (KPI) <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="inp plan-task-kpi-name" placeholder="ตัวชี้วัด (KPI)..." style="font-size:12px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ค่าเป้าหมาย <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="inp plan-task-kpi-target" placeholder="ค่าเป้าหมาย..." style="font-size:12px">
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">คำอธิบายเพิ่มเติม</label>
+        <input type="text" class="inp plan-task-desc" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)..." style="font-size:12px">
+      </div>
     </div>
     <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px">${trashSvg}</button>`;
   list.appendChild(row);
@@ -1044,6 +1094,12 @@ function addPlanTaskRow(btn) {
 //? ลบแถวงานออกจาก day card แล้ว re-index
 function removePlanTaskRow(btn) {
   const row = btn.closest('.plan-input-row');
+  if (row.dataset.approved === '1') {
+    Swal.fire({ icon: 'warning', title: 'ไม่สามารถลบได้',
+                text: 'งานนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขหรือลบได้',
+                confirmButtonColor: '#1059A3' });
+    return;
+  }
   const list = row.parentElement;
   row.remove();
   list.querySelectorAll('.plan-input-row').forEach((r, i) => {
@@ -1051,29 +1107,61 @@ function removePlanTaskRow(btn) {
   });
 }
 
-//? บันทึกแผนงาน → POST /api/plans
+//? บันทึกแผนงาน → POST /api/plans พร้อม Validation ฟิลด์บังคับ
 async function savePlan() {
   const btn = document.getElementById('btn-save-plan');
   const origText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = 'กำลังบันทึก...';
+  btn.textContent = 'กำลังตรวจสอบ...';
 
   const days = {};
+  let validationError = null; //! ใช้สำหรับ short-circuit เมื่อพบช่องว่างที่บังคับกรอก
+
   document.querySelectorAll('.plan-day-card').forEach(card => {
+    if (validationError) return;
     const dateStr = card.dataset.date;
     const tasks = [];
     let nextNewId = 10000; // ใช้ ID สูงสำหรับงานใหม่ที่ยังไม่มี ID
+
     card.querySelectorAll('.plan-input-row').forEach(row => {
+      if (validationError) return;
       const title = row.querySelector('.plan-task-title').value.trim();
-      if (title) {
-        const storedId = parseInt(row.dataset.taskId, 10);
-        const id = isNaN(storedId) ? nextNewId++ : storedId;
-        tasks.push({ id, title, description: row.querySelector('.plan-task-desc').value.trim() });
-      }
+      if (!title) return; // ข้าม row ที่ไม่มีชื่องาน (เหมือนเดิม)
+
+      //? ตรวจสอบฟิลด์บังคับ — เฉพาะ row ที่มี title เท่านั้น
+      const goal       = row.querySelector('.plan-task-goal').value.trim();
+      const output     = row.querySelector('.plan-task-output').value.trim();
+      const kpi_name   = row.querySelector('.plan-task-kpi-name').value.trim();
+      const kpi_target = row.querySelector('.plan-task-kpi-target').value.trim();
+
+      if (!goal)       { validationError = { row, sel: '.plan-task-goal',       label: 'เป้าหมาย' };       return; }
+      if (!output)     { validationError = { row, sel: '.plan-task-output',     label: 'ผลผลิต' };         return; }
+      if (!kpi_name)   { validationError = { row, sel: '.plan-task-kpi-name',   label: 'ตัวชี้วัด (KPI)' }; return; }
+      if (!kpi_target) { validationError = { row, sel: '.plan-task-kpi-target', label: 'ค่าเป้าหมาย' };    return; }
+
+      const storedId = parseInt(row.dataset.taskId, 10);
+      const id = isNaN(storedId) ? nextNewId++ : storedId;
+      tasks.push({ id, title, goal, output, kpi_name, kpi_target,
+                   description: row.querySelector('.plan-task-desc').value.trim() });
     });
     if (tasks.length > 0) days[dateStr] = tasks;
   });
 
+  //! แสดง error และหยุดการบันทึกถ้ามีฟิลด์บังคับที่ยังว่างอยู่
+  if (validationError) {
+    btn.disabled = false;
+    btn.textContent = origText;
+    const offending = validationError.row.querySelector(validationError.sel);
+    offending.focus();
+    offending.style.borderColor = '#e74c3c';
+    offending.addEventListener('input', () => { offending.style.borderColor = ''; }, { once: true });
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ',
+                text: `กรุณากรอก "${validationError.label}" ให้ครบก่อนบันทึก`,
+                confirmButtonColor: '#1059A3' });
+    return;
+  }
+
+  btn.textContent = 'กำลังบันทึก...';
   try {
     const res = await fetch('/api/plans', {
       method: 'POST',

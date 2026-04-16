@@ -116,12 +116,16 @@ def save_plan(
                         existing_approved_at = old_t.get("approved_at", "")
                         break
             clean_tasks.append({
-                "id": task_dict.get("id", len(clean_tasks) + 1),
-                "title": task_dict.get("title", ""),
+                "id":          task_dict.get("id", len(clean_tasks) + 1),
+                "title":       task_dict.get("title", ""),
                 "description": task_dict.get("description", ""),
+                "goal":        task_dict.get("goal", ""),        #? เป้าหมายของงาน
+                "output":      task_dict.get("output", ""),      #? ผลผลิต/สิ่งที่ส่งมอบ
+                "kpi_name":    task_dict.get("kpi_name", ""),    #? ชื่อตัวชี้วัด KPI
+                "kpi_target":  task_dict.get("kpi_target", ""),  #? ค่าเป้าหมาย KPI
                 # ห้ามให้ client เขียนทับ approval — ใช้ค่าเดิมจาก Firestore เสมอ
                 # เฉพาะ PATCH /approve เท่านั้นที่เปลี่ยน approved/approved_by/approved_at ได้
-                "approved": existing_approved,
+                "approved":    existing_approved,
                 "approved_by": existing_approved_by,
                 "approved_at": existing_approved_at,
             })

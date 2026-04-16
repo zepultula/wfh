@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v3.1.0
+## 🚀 คุณสมบัติเด่น (Features) - v3.3.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน
@@ -47,7 +47,14 @@
 - **Excel ละเอียด:** ส่งออกรายงานประจำวันเป็น `.xlsx` พร้อมรายการงาน สถานะ ปัญหา คอมเมนต์ และรายชื่อผู้ยังไม่ส่ง
 - **Loading Animation:** ปุ่มดาวน์โหลดแสดง Spinner และ Disabled ระหว่างรอข้อมูล
 
-### 7. ระบบประกาศ (Announcement System) — v3.1.0
+### 7. ระบบแผนงานรายสัปดาห์ (Weekly Work Plan) — v3.2.0 / v3.3.0
+- **วางแผนงานล่วงหน้า:** พนักงานวางแผนรายสัปดาห์ (จันทร์–เสาร์) ผ่านปุ่ม "แผนงาน" ในหน้าพนักงาน
+- **ฟิลด์ครบถ้วน (v3.3.0):** แต่ละงานประกอบด้วย ชื่องาน, เป้าหมาย, ผลผลิต, ตัวชี้วัด (KPI), ค่าเป้าหมาย และคำอธิบายเพิ่มเติม พร้อม label ชัดเจน
+- **Auto-inject:** งานที่ได้รับอนุมัติปรากฏใน form รายงานประจำวันโดยอัตโนมัติ
+- **Approval System:** หัวหน้างานสามารถกด **"อนุมัติ"** หรือ **"ไม่อนุมัติ"** งานแต่ละรายการในหน้า "รีวิวแผนงาน"
+- **Lock งานอนุมัติ:** งานที่อนุมัติแล้วจะถูกล็อกทุกช่อง ห้ามแก้ไขและลบ
+
+### 8. ระบบประกาศ (Announcement System) — v3.1.0
 - **Announcement Modal:** แสดงประกาศครั้งเดียวต่อ Login session — ปิดหน้าต่างหรือ Login ใหม่จะแสดงซ้ำอีกครั้ง
 - **กลุ่มเป้าหมาย:** Super Admin กำหนดได้ว่าแต่ละประกาศจะแสดงต่อ "ทุกคน", "พนักงาน" หรือ "แอดมิน"
 - **จัดการประกาศ:** Super Admin สร้าง/แก้ไข/เปิด-ปิด/ลบประกาศผ่านเมนู "จัดการประกาศ" (ปุ่มสีทอง) ในหน้า Admin
@@ -81,7 +88,8 @@ wfh/
 ├── routers/
 │   ├── reports.py           # CRUD logic for reports & comments (with RBAC)
 │   ├── admin.py             # User Management, Evaluations, Stats & Export
-│   └── announcements.py     # Announcement CRUD (Super Admin) + display endpoint
+│   ├── announcements.py     # Announcement CRUD (Super Admin) + display endpoint
+│   └── plans.py             # Weekly Work Plan CRUD + approval endpoints
 ├── static/
 │   ├── index.html           # Landing & Login page  → เข้าถึงผ่าน /
 │   ├── employee.html        # Employee dashboard    → เข้าถึงผ่าน /employee
@@ -118,6 +126,11 @@ wfh/
 ### 4. Collection: `announcements`
 เก็บประกาศจากผู้ดูแลระบบ (Document ID: auto-generated)
 - Fields: `title`, `body`, `is_active`, `target` (`all`/`employee`/`admin`), `created_at`, `created_by`
+
+### 5. Collection: `weekly_plans`
+เก็บแผนงานรายสัปดาห์ (Document ID: `{user_id}_{week_start}`)
+- Fields: `user_id`, `user_name`, `department`, `week_start`, `days`
+- `days`: dict mapping `YYYY-MM-DD` → list ของ tasks (id, title, goal, output, kpi_name, kpi_target, description, approved, approved_by, approved_at)
 
 ---
 
@@ -180,6 +193,11 @@ wfh/
 | POST | `/api/announcements` | สร้างประกาศใหม่ (Super Admin only) |
 | PATCH | `/api/announcements/{id}` | แก้ไขประกาศ (Super Admin only) |
 | DELETE | `/api/announcements/{id}` | ลบประกาศ (Super Admin only) |
+| GET | `/api/plans` | ดูแผนงานของตัวเอง (`?week=YYYY-MM-DD`) |
+| POST | `/api/plans` | สร้าง/แทนที่แผนงาน (รักษา approval fields ไว้เสมอ) |
+| GET | `/api/plans/tasks` | ดึงงานในแผนสำหรับวันที่ระบุ (auto-inject) |
+| GET | `/api/plans/subordinates` | หัวหน้าดูแผนของลูกน้อง (Admin Level 1+) |
+| PATCH | `/api/plans/{plan_id}/approve` | อนุมัติ/ไม่อนุมัติงาน (Admin Level 1+) |
 
 > ดูรายละเอียด API ทั้งหมดได้ที่ [API_DOCS.md](API_DOCS.md)
 
@@ -197,6 +215,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.1.0
+- **เวอร์ชัน:** 3.3.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

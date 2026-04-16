@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8000`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.1.0
+**Version:** 3.3.0
 
 ---
 
@@ -722,6 +722,158 @@ GET /api/admin/reports/export?date=2026-04-15
 
 ---
 
+### Plans (Weekly Work Plan)
+
+---
+
+#### 25. GET `/api/plans`
+
+ดูแผนงานของตัวเองสำหรับสัปดาห์ที่ระบุ
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `week` | `YYYY-MM-DD` | ไม่บังคับ | วันใดก็ได้ในสัปดาห์นั้น (default = สัปดาห์ปัจจุบัน) |
+
+**Response 200**
+```json
+{
+  "id": "EMP001_2026-04-14",
+  "user_id": "EMP001",
+  "user_name": "สมชาย วงค์แหวน",
+  "department": "วิทยบริการ",
+  "week_start": "2026-04-14",
+  "created_at": "2026-04-14 09:00:00",
+  "updated_at": "2026-04-15 10:30:00",
+  "days": {
+    "2026-04-14": [
+      {
+        "id": 1,
+        "title": "ประชุมทีม",
+        "description": "",
+        "goal": "สรุปแผนงานไตรมาส 2",
+        "output": "เอกสารสรุปแผน 1 ฉบับ",
+        "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
+        "kpi_target": "1 แผน",
+        "approved": false,
+        "approved_by": "",
+        "approved_at": ""
+      }
+    ]
+  }
+}
+```
+
+> ถ้าไม่มีแผนในสัปดาห์นั้น จะคืน `{ "id": "...", "week_start": "...", "days": {} }`
+
+---
+
+#### 26. POST `/api/plans`
+
+สร้างหรือแทนที่แผนงานสำหรับสัปดาห์ที่ระบุ  
+**Approval fields (`approved`, `approved_by`, `approved_at`) จะ**ไม่ถูก**เขียนทับจาก client** — backend อ่านค่าเดิมจาก Firestore เสมอ
+
+**Request Body**
+```json
+{
+  "week_start": "2026-04-14",
+  "days": {
+    "2026-04-14": [
+      {
+        "id": 1,
+        "title": "ประชุมทีม",
+        "description": "",
+        "goal": "สรุปแผนงานไตรมาส 2",
+        "output": "เอกสารสรุปแผน 1 ฉบับ",
+        "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
+        "kpi_target": "1 แผน"
+      }
+    ]
+  }
+}
+```
+
+**Response 201** — เหมือน GET `/api/plans` (รวม approval fields จาก Firestore)
+
+---
+
+#### 27. GET `/api/plans/tasks`
+
+ดึงงานในแผนสำหรับวันที่ระบุ — ใช้โดย `emp.js` สำหรับ auto-inject งานเข้ารายงานประจำวัน
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `date` | `YYYY-MM-DD` | บังคับ | วันที่ที่ต้องการดึงงาน |
+
+**Response 200** — `PlanTask[]`  
+> คืนเฉพาะงานที่ `approved=true` หรือ `approved_by=""` (pending) — ซ่อนงานที่ถูกไม่อนุมัติ
+
+---
+
+#### 28. GET `/api/plans/subordinates`
+
+Admin/Supervisor ดูแผนของลูกน้องทุกคนสำหรับสัปดาห์ที่ระบุ
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `week` | `YYYY-MM-DD` | ไม่บังคับ | default = สัปดาห์ปัจจุบัน |
+
+**สิทธิ์:**
+- **Super Admin** → เห็นแผนของทุกคน
+- **Level 1-3** → เห็นเฉพาะลูกน้องในสายบังคับบัญชา
+
+**Response 200** — `WeeklyPlan[]` (รายการแผนของลูกน้องแต่ละคน)
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 403 | สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น |
+
+---
+
+#### 29. PATCH `/api/plans/{plan_id}/approve`
+
+อนุมัติหรือไม่อนุมัติงานรายการเดียวในแผน (Admin/Supervisor only)
+
+- `approved: true` → งานได้รับการอนุมัติ; บันทึก `approved_by` (ชื่อผู้อนุมัติ) และ `approved_at` (เวลา ICT)
+- `approved: false` → งานถูกปฏิเสธ; บันทึก `approved_by` แต่ `approved_at` = `""`
+- เฉพาะ endpoint นี้เท่านั้นที่แก้ `approved`, `approved_by`, `approved_at` ได้ — `POST /api/plans` ไม่อนุญาต
+
+**Path Parameters**
+| Param | Type | Description |
+|-------|------|-------------|
+| `plan_id` | string | `{user_id}_{week_start}` เช่น `EMP001_2026-04-14` |
+
+**Request Body**
+```json
+{
+  "date": "2026-04-14",
+  "task_id": 1,
+  "approved": true
+}
+```
+
+**Response 200**
+```json
+{
+  "status": "ok",
+  "plan_id": "EMP001_2026-04-14",
+  "date": "2026-04-14",
+  "task_id": 1,
+  "approved": true
+}
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 403 | สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น |
+| 404 | ไม่พบแผนงานที่ระบุ / ไม่พบงานที่ระบุในแผนงาน |
+
+---
+
 ### Admin — Data Migration (Super Admin only)
 
 > Endpoints เหล่านี้ **Idempotent** — รันซ้ำกี่ครั้งก็ได้ผลเหมือนเดิม  
@@ -811,6 +963,27 @@ GET /api/admin/reports/export?date=2026-04-15
 | `message` | string | ข้อความคอมเมนต์ |
 | `tag` | string | แท็กสถานะ (optional) |
 | `timestamp` | string | `HH:MM` (ICT) |
+
+---
+
+### PlanTask
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `id` | int | บังคับ | ID งาน (stable — ไม่เปลี่ยนเมื่อเพิ่ม/ลบงานอื่น) |
+| `title` | string | บังคับ | ชื่องาน |
+| `description` | string | ไม่บังคับ (default `""`) | คำอธิบายเพิ่มเติม |
+| `goal` | string | บังคับ (UI) / optional (API) | เป้าหมายของงาน |
+| `output` | string | บังคับ (UI) / optional (API) | ผลผลิต/สิ่งที่ส่งมอบ |
+| `kpi_name` | string | บังคับ (UI) / optional (API) | ชื่อตัวชี้วัด |
+| `kpi_target` | string | บังคับ (UI) / optional (API) | ค่าเป้าหมายของตัวชี้วัด |
+| `approved` | bool | ระบบกำหนด | สถานะการอนุมัติ (แก้ไขได้เฉพาะ PATCH `/approve`) |
+| `approved_by` | string | ระบบกำหนด | ชื่อผู้อนุมัติ/ปฏิเสธ |
+| `approved_at` | string | ระบบกำหนด | เวลาอนุมัติ (ICT); `""` ถ้าปฏิเสธ |
+
+> **สถานะงาน (3 ค่า):**
+> - `approved=false, approved_by=""` → **Pending** (รอรีวิว)
+> - `approved=true` → **Approved** (อนุมัติแล้ว — lock ทุกช่อง, ห้ามลบ)
+> - `approved=false, approved_by≠""` → **Rejected** (ไม่อนุมัติ — ซ่อนใน auto-inject)
 
 ---
 

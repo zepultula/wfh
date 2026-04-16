@@ -87,10 +87,17 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 .plan-task-row:last-child{border-bottom:none}
 .plan-task-num{font-size:12px;color:var(--color-text-secondary);min-width:18px;padding-top:7px;flex-shrink:0}
 .plan-task-body{flex:1;display:flex;flex-direction:column;gap:4px}
-.plan-task-approved{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:10px;cursor:pointer;user-select:none;width:fit-content}
+.plan-task-approved{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:10px;cursor:default;user-select:none;width:fit-content}
 .plan-task-approved.yes{background:#E8F5E9;color:#2E7D32}
-.plan-task-approved.no{background:#F5F5F5;color:#9E9E9E}
-.plan-task-approved.no:hover{background:#E8F5E9;color:#2E7D32}
+.plan-task-approved.no{background:#FFEBEE;color:#C62828}
+/* ปุ่มอนุมัติ/ไม่อนุมัติในหน้ารีวิวแผนงาน */
+.plan-approval-btn{padding:3px 10px;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid #ccc;background:transparent;color:#666;transition:background .15s,border-color .15s,color .15s}
+.plan-approval-btn.apt-active{border-color:#388E3C;background:#E8F5E9;color:#2E7D32}
+.plan-approval-btn.rej-active{border-color:#C62828;background:#FFEBEE;color:#C62828}
+
+/* KPI row: ตัวชี้วัดและค่าเป้าหมายเคียงข้างกัน */
+.plan-kpi-row{display:flex;gap:6px}
+.plan-kpi-row > div{flex:1;min-width:0}
 
 /* ── page body ── */
 .pg{padding:1.5rem;max-width:none}
