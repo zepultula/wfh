@@ -171,22 +171,24 @@ async function loadReport(dateStr) {
     const cmtName = document.getElementById('e-cmt-name');
     if (cmtName) cmtName.textContent = currentUser.name + ' · ส่งข้อความถึงหัวหน้างาน';
 
-    //? เรียก API
+    //? 1. ดึงงานจากแผนงานรายสัปดาห์ (Auto-inject) เตรียมไว้ก่อนหากเป็นวันปัจจุบัน
+    let plannedTasks = [];
+    if (!isHistoryMode) {
+      try {
+        const pr = await fetch(`/api/plans/tasks?date=${dateStr}`);
+        if (pr.ok) plannedTasks = await pr.json();
+      } catch(e) { /* จัดการ Error เงียบๆ เพื่อไม่ให้กระทบการโหลดรายงาน */ }
+    }
+
+    //? 2. ดึงข้อมูลรายงานประจำวัน (ถ้ามี)
     const res = await fetch(`/api/reports/${reportId}`);
     if (res.ok) {
       const report = await res.json();
-      currentReportExists = true; //? ระบุว่ารายงานนี้มีอยู่แล้ว (เผื่อใช้ใน Auto-save)
-      populateEmployeeForm(report, isHistoryMode);
+      currentReportExists = true; //? ระบุว่ารายงานนี้มีอยู่แล้วในระบบ
+      //? ส่งทั้งข้อมูลรายงานและแผนงานไปให้ฟังก์ชัน Populate จัดการ
+      populateEmployeeForm(report, isHistoryMode, plannedTasks);
     } else {
       currentReportExists = false; //? รายงานใหม่ (ยังไม่เคยส่ง)
-      //? ดึงงานจากแผนงานสำหรับวันนี้ (auto-inject) เฉพาะโหมดปัจจุบัน (ไม่ใช่ย้อนหลัง)
-      let plannedTasks = [];
-      if (!isHistoryMode) {
-        try {
-          const pr = await fetch(`/api/plans/tasks?date=${dateStr}`);
-          if (pr.ok) plannedTasks = await pr.json();
-        } catch(e) { /* ไม่มีแผนงาน หรือ network error — ไม่ต้องแสดง error */ }
-      }
       populateEmployeeForm(null, isHistoryMode, plannedTasks);
     }
   } catch(e) {
@@ -289,33 +291,40 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
   //? เรนเดอร์คอมเมนท์แชท
   renderComments(report.comments, 'e-thread');
 
-  //? วนลูปสร้างรายการงาน (Tasks) ของรายงานฉบับนี้ตามข้อมูลที่ดึงมา
-  if (report.tasks && report.tasks.length > 0) {
-    report.tasks.forEach((task, idx) => {
+  //? 6. สร้างรายการงาน (Tasks) จากรายงานเดิม พร้อมเติมงานจากแผนที่ขาดหายไป (Smart Inject)
+  const existingTasks = report.tasks || [];
+  const existingTitles = new Set(existingTasks.map(t => (t.title || '').trim()));
+  
+  //? รวมงานจากแแผนที่ยังไม่มีในรายงาน (เฉพาะโหมดแก้ใข)
+  let tasksToRender = [...existingTasks];
+  if (!readOnly && plannedTasks && plannedTasks.length > 0) {
+    plannedTasks.forEach(pt => {
+      if (!existingTitles.has((pt.title || '').trim())) {
+        //? ทำเครื่องหมายว่าเป็นงานที่มาจากแผน (เพื่อล็อก Title)
+        tasksToRender.push({ ...pt, from_plan: true });
+      }
+    });
+  }
+
+  if (tasksToRender.length > 0) {
+    tasksToRender.forEach((task, idx) => {
       const r = document.createElement('div');
       r.className = 'task-row';
-      //? เก็บรายละเอียดงาน (Long description) ไว้ใน data-desc attribute เพื่อใช้ใน Modal
       if (task.description) r.setAttribute('data-desc', task.description);
-      //? ทำเครื่องหมายงานที่มาจากแผนงาน (จะล็อก title ไม่ให้แก้ไข)
+      
       const isFromPlan = task.from_plan === true;
       if (isFromPlan) r.dataset.fromPlan = 'true';
 
-      //? คำนวณหา Class ของสถานะ (Status) และปุ่มรายละเอียด (Description)
       const statusClass = task.status === 'done' ? 'sp-done' : task.status === 'prog' ? 'sp-prog' : 'sp-pend';
       const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
-
-      //? ชื่องานจากแผน: readonly เสมอ; งานทั่วไป: readonly เฉพาะโหมดย้อนหลัง
       const titleAttr = (readOnly || isFromPlan)
         ? `readonly ${isFromPlan ? 'style="background:#F0F8FF;cursor:default"' : ''}`
         : '';
-
-      //? ในโหมดย้อนหลัง (ReadOnly) จะ "ไม่แสดง" ปุ่มลบงาน (Trash icon)
       const delBtn = readOnly ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
       const planBadge = isFromPlan
         ? '<span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>'
         : '';
 
-      //? วาดโครงสร้างงานแต่ละข้อ
       r.innerHTML = `
         <div class="tnum">${idx+1}</div>
         <div class="task-body">

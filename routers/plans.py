@@ -38,8 +38,8 @@ def _get_subordinate_user_ids(db, current_user: dict) -> set | None:
     is_super_admin = level == 9 or 'admin' in role
     if is_super_admin:
         return None
-    allowed = set()
-    if 1 <= level <= 3:
+    allowed = {personal_id} if personal_id else set()
+    if 1 <= level <= 3 and personal_id:
         for e in db.collection("evaluations") \
                     .where("evaluator_ids", "array_contains", personal_id) \
                     .stream():
@@ -153,19 +153,32 @@ def get_plan_tasks_for_date(
     ใช้โดย emp.js สำหรับ auto-inject งานเข้าฟอร์มรายงานประจำวัน
     """
     week_start = _get_monday(date)
-    user_id = current_user.get("user_id", "")
-    plan_id = f"{user_id}_{week_start}"
+    #? ดึง user_id (personal_id) มาใช้งาน พร้อมจัดการขจัดช่องว่างที่อาจติดมา
+    user_id = str(current_user.get("user_id", "")).strip()
     db = get_db()
+    
+    #? Fallback: หาก user_id ใน JWT ว่าง (บางกรณีสิทธิ์ Admin อาจไม่มีเลขพนักงานใน Token)
+    #? ให้ดึงจาก Firestore โดยตรงผ่าน email (sub) เพื่อความแม่นยำสูงสุด
+    if not user_id:
+        email = current_user.get("sub")
+        if email:
+            u_doc = db.collection("users").document(email).get()
+            if u_doc.exists:
+                user_id = str(u_doc.to_dict().get("personal_id", "")).strip()
+    
+    #? หากยังไม่พบ user_id หรือเป็นค่าว่าง จะไม่สามารถระบุแผนงานได้
+    if not user_id:
+        return []
+
+    plan_id = f"{user_id}_{week_start}"
     doc = db.collection("weekly_plans").document(plan_id).get()
     if not doc.exists:
         return []
     days = doc.to_dict().get("days", {})
     tasks = days.get(date, [])
-    # กรองงาน: แสดงเฉพาะ
-    #   - งานที่อนุมัติแล้ว (approved=True)
-    #   - งานที่ยังไม่เคยถูกแตะโดยหัวหน้า (approved_by="") → ยังไม่ได้รีวิว
-    # ยกเว้น: งานที่หัวหน้าเคยอนุมัติแล้วยกเลิก (approved=False แต่ approved_by มีค่า)
-    return [t for t in tasks if t.get("approved", False) or not t.get("approved_by", "")]
+    #? กรองงาน: แสดงเฉพาะงานที่ "อนุมัติแล้ว" หรือ "ยังไม่รีวิว" (Pending) เท่านั้น ตามบันทึกใน CONTEXT.md
+    #? ซ่อนเฉพาะงานที่หัวหน้าระบุว่า "ไม่อนุมัติ" (approved=False และ approved_by ไม่ใช่ค่าว่าง)
+    return [t for t in tasks if t.get("approved", False) or t.get("approved_by") == ""]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -183,7 +196,8 @@ def get_subordinates_plans(
     level = current_user.get("level", 0)
     role = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        #? พนักงานทั่วไปเข้าถึงหน้านี้ไม่ได้
+        raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
 
     today = date_mod.today().isoformat()
     week_start = _get_monday(week if week else today)
@@ -217,13 +231,14 @@ def approve_task(
     level = current_user.get("level", 0)
     role = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
-        raise HTTPException(status_code=403, detail="Admin access required")
+        #? พนักงานทั่วไปเข้าหน้าอนุมัติไม่ได้
+        raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
 
     db = get_db()
     doc_ref = db.collection("weekly_plans").document(plan_id)
     doc = doc_ref.get()
     if not doc.exists:
-        raise HTTPException(status_code=404, detail="Plan not found")
+        raise HTTPException(status_code=404, detail="ไม่พบแผนงานที่ระบุ")
 
     plan_data = doc.to_dict()
     days = plan_data.get("days", {})
@@ -239,7 +254,8 @@ def approve_task(
             break
 
     if not updated:
-        raise HTTPException(status_code=404, detail="Task not found in plan")
+        #? แจ้งเตือนหากไม่พบงานที่ระบุในแผนของวันนั้นๆ
+        raise HTTPException(status_code=404, detail="ไม่พบงานที่ระบุในแผนงาน")
 
     days[data.date] = tasks_for_date
     doc_ref.update({"days": days, "updated_at": _now_bkk()})
