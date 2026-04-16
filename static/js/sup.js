@@ -26,6 +26,12 @@ async function initUser() {
     document.getElementById('nb-name').textContent = currentUser.name;
     document.getElementById('nb-role').textContent = currentUser.position || currentUser.role;
 
+    //? อัปเดต Avatar และชื่อผู้ส่งในช่องคอมเมนต์ให้ตรงกับชื่อจริงของแอดมินที่ Login อยู่
+    const cmtAv = document.getElementById('s-cmt-av');
+    const cmtName = document.getElementById('s-cmt-name');
+    if (cmtAv) cmtAv.textContent = getInitials(currentUser.name);
+    if (cmtName) cmtName.textContent = `${currentUser.name} · คอมเมนต์ถึงพนักงาน`;
+
     //? จัดการการมองเห็นเมนูจัดการ (Management) ตามสิทธิ์
     //? Level 9 หรือ 'admin' จะเห็นเมนูจัดการผู้ใช้และสายบังคับบัญชา
     if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
@@ -409,9 +415,9 @@ function buildDetailDateNav(reportId) {
     
   return `
     <div class="date-nav" style="margin-bottom:.875rem">
-      <button class="date-nav-btn" onclick="navigateEmployeeReport(-1)">← วันก่อน</button>
+      <button class="date-nav-btn" onclick="navigateEmployeeReport(-1)" title="วันก่อนหน้า"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
       <div class="date-nav-display">${displayDate}${historyLabel}</div>
-      <button class="date-nav-btn" onclick="navigateEmployeeReport(1)" ${isToday ? 'disabled' : ''}>วันถัดไป →</button>
+      <button class="date-nav-btn" onclick="navigateEmployeeReport(1)" title="วันถัดไป" ${isToday ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
     </div>`;
 }
 
@@ -490,7 +496,7 @@ function renderEmptyReportDetail(reportId) {
   `;
 
   const thread = document.getElementById('s-thread');
-  if (thread) thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ยังไม่มีการสื่อสาร</div>';
+  if (thread) thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">คลิกที่นี่เพื่อเริ่มการเขียนคอมเมนต์</div>';
 }
 
 /* ── Render report list ── */
@@ -704,7 +710,7 @@ function renderComments(comments, containerId) {
     });
   } else {
     //? //! กรณีที่ยังไม่มีใครตอบโต้กันในรายงานนี้
-    thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ยังไม่มีการสื่อสาร</div>';
+    thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">คลิกที่นี่เพื่อเริ่มการเขียนคอมเมนต์</div>';
   }
 }
 

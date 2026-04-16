@@ -60,16 +60,16 @@ def login(req: LoginRequest):
                 .limit(1).stream():
             doc = d
         if doc is None:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
     else:
         doc = users_ref.document(req.email).get()
         if not doc.exists:
             #! หากไม่พบ Email ในระบบ จะส่ง Error 401 กลับไป (ไม่ควรบอกว่าอีเมลผิดหรือรหัสผ่านผิดเพื่อความปลอดภัย)
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 
     user_data = doc.to_dict()
     if user_data.get("password") != req.password:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 
     #? ใช้ doc.id (Document ID = email) เป็น sub เพื่อให้ตรงกันทั้งกรณีกรอกเต็มและ username ย่อ
     token = create_access_token({
@@ -223,7 +223,7 @@ if __name__ == "__main__":
     #? ดึงค่าจาก Environment Variables ถ้าไม่มีให้ใช้ค่า Default
     #? บนเซิร์ฟเวอร์จริง '0.0.0.0' คือการยอมรับทุก IP ที่วิ่งเข้ามาหาเครื่องนี้
     host_ip = os.getenv("APP_HOST", "0.0.0.0")
-    port_num = int(os.getenv("APP_PORT", 8000))
+    port_num = int(os.getenv("APP_PORT", 8100))
 
     print(f"Starting server at {host_ip}:{port_num}...")
     uvicorn.run("main:app", host=host_ip, port=port_num, reload=False)

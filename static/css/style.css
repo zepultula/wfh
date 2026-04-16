@@ -339,8 +339,9 @@ textarea{resize:none;min-height:60px}
 
 /* ── date navigation ── */
 .date-nav{display:flex;align-items:center;gap:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:6px 10px;margin-bottom:.875rem}
-.date-nav-btn{background:var(--color-background-primary);border:0.5px solid var(--color-border-secondary);border-radius:6px;padding:4px 10px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;font-family:var(--font-sans);transition:all .15s;flex-shrink:0;white-space:nowrap}
-.date-nav-btn:hover:not(:disabled){background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary)}
+.date-nav-btn{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:#EEF4FC;border:1px solid #C2D8F0;border-radius:50%;color:#2563EB;cursor:pointer;transition:all .18s;flex-shrink:0;padding:0}
+.date-nav-btn:hover:not(:disabled){background:#2563EB;border-color:#2563EB;color:#fff;transform:scale(1.08);box-shadow:0 2px 8px rgba(37,99,235,0.25)}
+.date-nav-btn:active:not(:disabled){transform:scale(0.96)}
 .date-nav-btn:disabled{opacity:.3;cursor:not-allowed}
 .date-nav-display{flex:1;text-align:center;font-size:13px;font-weight:500;color:var(--color-text-primary)}
 .date-nav-input{font-size:11px;padding:3px 7px;border:0.5px solid var(--color-border-secondary);border-radius:6px;background:var(--color-background-primary);color:var(--color-text-secondary);outline:none;font-family:var(--font-sans);cursor:pointer}

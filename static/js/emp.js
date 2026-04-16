@@ -388,7 +388,10 @@ window.showProfileModal = function() {
     document.getElementById('p-email').textContent = currentUser.email || '—';
     document.getElementById('p-id').textContent = currentUser.user_id || '—';
     document.getElementById('p-role').textContent = currentUser.position || currentUser.role || '—';
-    document.getElementById('p-level').textContent = currentUser.level || '0';
+    //? แปลงค่า level เป็นชื่อสิทธิ์ภาษาไทยเพื่อแสดงผลในโปรไฟล์
+    const levelLabels = { 0: 'ผู้ปฏิบัติงาน', 1: 'หัวหน้างาน', 2: 'ผอ.กอง/รองคณบดี', 3: 'ผอ.สน.' };
+    const lvl = parseInt(currentUser.level ?? 0, 10);
+    document.getElementById('p-level').textContent = levelLabels[lvl] ?? `ระดับ ${lvl}`;
     document.getElementById('p-dept').textContent = currentUser.department + (currentUser.agency ? ` / ${currentUser.agency}` : '');
     
     //? ล้างค่าในช่องกรอกรหัสผ่านและข้อความแจ้งเตือนทุกครั้งที่เปิด
@@ -758,7 +761,13 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
 async function sendCmt() {
   //! ห้ามส่งคอมเมนท์ในรายงานย้อนหลัง เพื่อรักษาความถูกต้องของข้อมูลเหตุการณ์
   if (isHistoryMode) return;
-  
+
+  //! ห้ามส่งคอมเมนท์หากยังไม่มีรายงานวันนี้ในระบบ
+  if (!currentReportExists) {
+    Swal.fire({ icon: 'warning', title: 'ยังไม่มีรายงาน', text: 'กรุณาส่งรายงานประจำวันก่อนจึงจะสามารถแสดงความคิดเห็นได้', confirmButtonColor: '#1059A3' });
+    return;
+  }
+
   const msg = document.getElementById('e-msg').value.trim();
   if (!msg || !currentReportId || !currentUser) return;
 
@@ -828,7 +837,7 @@ function renderComments(comments, containerId) {
     //todo เพิ่มการเลื่อน Scrollbar ลงด้านล่างสุดอัตโนมัติเมื่อหัวข้อคอมเมนท์เยอะ
   } else {
     //? แจ้งพนักงานหากยังไม่มีคอมเมนท์ใดๆ
-    thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">ยังไม่มีการสื่อสาร</div>';
+    thread.innerHTML = '<div style="font-size:12px;color:var(--color-text-secondary);text-align:center;padding:10px">คลิกที่นี่เพื่อเริ่มการเขียนคอมเมนต์</div>';
   }
 }
 

@@ -59,10 +59,10 @@
 
     <!-- date navigation -->
     <div class="date-nav">
-      <button class="date-nav-btn" id="btn-prev-day" onclick="navigateDate(-1)">← ก่อนหน้า</button>
+      <button class="date-nav-btn" id="btn-prev-day" onclick="navigateDate(-1)" title="วันก่อนหน้า"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></button>
       <div class="date-nav-display" id="nav-date-display">—</div>
       <input type="date" id="nav-date-input" class="date-nav-input" onchange="onDateInputChange(this.value)" title="เลือกวันที่" />
-      <button class="date-nav-btn" id="btn-next-day" onclick="navigateDate(1)" disabled>ถัดไป →</button>
+      <button class="date-nav-btn" id="btn-next-day" onclick="navigateDate(1)" disabled title="วันถัดไป"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
       <button class="btn-today" id="btn-goto-today" onclick="goToToday()" style="display:none">วันนี้</button>
     </div>
 
