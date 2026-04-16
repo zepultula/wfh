@@ -27,10 +27,20 @@ app = FastAPI(title="WFH Daily Report API", lifespan=lifespan)
 @app.exception_handler(StarletteHTTPException)
 async def not_found_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 404:
+        #? ถ้าเป็นการเรียกใช้ API ให้ส่ง JSON กลับไป เพื่อไม่ให้ JS ฝั่ง Client สับสนกับ HTML
+        if request.url.path.startswith("/api/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=404, content={"detail": exc.detail})
         return FileResponse("static/404.html", status_code=404)
     #! กรณี HTTP error อื่น ๆ ที่ไม่ใช่ 404 ให้ยังคง raise ต่อไปตามปกติ
     from fastapi.responses import JSONResponse
     return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+#? ปิด Log กวนใจจาก Chrome DevTools ที่พยายามเรียกหาไฟล์คอนฟิก
+@app.get("/.well-known/appspecific/com.chrome.devtools.json", include_in_schema=False)
+def chrome_devtools_json():
+    return {}
+
 
 #? ตั้งค่า CORS (Cross-Origin Resource Sharing) 
 #! ในสภาพแวดล้อมจริง (Production) ควรระบุ Origins ที่ชัดเจนแทน "*" เพื่อความปลอดภัย
