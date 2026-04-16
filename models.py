@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict
 from datetime import datetime
 
 #? Model สำหรับเก็บข้อมูลพื้นฐานของพนักงานที่ผ่านการตรวจสอบสิทธิ์แล้ว (ใช้ใน Auth Token)
@@ -18,6 +18,16 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+#? โครงสร้างสำหรับเก็บไฟล์แนบในแต่ละงาน
+class TaskFile(BaseModel):
+    name: str  # ชื่อไฟล์เดิม (เช่น report.pdf)
+    url: str   # พาธที่เก็บไฟล์ (เช่น /uploads/uuid-report.pdf)
+
+#? โครงสร้างสำหรับเก็บลิงก์อ้างอิงในแต่ละงาน
+class TaskLink(BaseModel):
+    title: str # ชื่อลิงก์ที่ผู้ใช้ระบุ
+    url: str   # URL จริง
+
 #? รายละเอียดงานแต่ละรายการที่ระบุในรายงานประจำวัน
 class TaskModel(BaseModel):
     id: int
@@ -27,6 +37,8 @@ class TaskModel(BaseModel):
     status: str
     #? True = งานนี้มาจากแผนงานรายสัปดาห์ (ชื่องานจะถูกล็อกแก้ไขไม่ได้ในหน้าพนักงาน)
     from_plan: Optional[bool] = False
+    files: Optional[List[TaskFile]] = []
+    links: Optional[List[TaskLink]] = []
 
 #? โครงสร้างพื้นฐานของรายงาน (Base Schema)
 class ReportBase(BaseModel):

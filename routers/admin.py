@@ -625,9 +625,16 @@ def export_daily_reports(date: str, authorization: str = Header(None)):
             fill = alt_fill if idx % 2 == 0 else white_fill
 
             tasks = report.get("tasks", [])
-            task_lines = "\n".join(
-                [f"{i+1}. {t.get('title', '-')}" for i, t in enumerate(tasks)]
-            ) or "-"
+            
+            def format_task(i, t):
+                base = f"{i+1}. {t.get('title', '-')}"
+                f_cnt = len(t.get('files', []))
+                l_cnt = len(t.get('links', []))
+                if f_cnt > 0 or l_cnt > 0:
+                    base += f" [📎 {f_cnt} ไฟล์, 🔗 {l_cnt} ลิงก์]"
+                return base
+
+            task_lines = "\n".join([format_task(i, t) for i, t in enumerate(tasks)]) or "-"
             status_lines = "\n".join(
                 [status_map.get(t.get("status", ""), t.get("status", "-")) for t in tasks]
             ) or "-"

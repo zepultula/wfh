@@ -229,15 +229,20 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
           r.dataset.fromPlan = 'true';
           if (task.description) r.setAttribute('data-desc', task.description);
           const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
+          const attachClass = (task.files?.length > 0 || task.links?.length > 0) ? 'btn-desc has-data' : 'btn-desc';
           r.innerHTML = `
             <div class="tnum">${idx+1}</div>
             <div class="task-body">
               <input type="text" value="${task.title.replace(/"/g,'&quot;')}" readonly style="background:#F0F8FF;cursor:default" />
               <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
               <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+              <button class="${attachClass} btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
               <span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>
             </div>
             <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+          
+          if(task.files && task.files.length > 0) r.setAttribute('data-files', JSON.stringify(task.files));
+          if(task.links && task.links.length > 0) r.setAttribute('data-links', JSON.stringify(task.links));
           tasksContainer.appendChild(r);
           setupTaskStatusHandlers(r);
           r.querySelector('.sp-pend').classList.add('on'); //? default = ยังไม่เริ่ม
@@ -252,6 +257,7 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
             <input type="text" placeholder="ระบุงานที่ทำ..." />
             <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
             <button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+            <button class="btn-desc btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
           </div>
           <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
         tasksContainer.appendChild(r);
@@ -317,6 +323,7 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
 
       const statusClass = task.status === 'done' ? 'sp-done' : task.status === 'prog' ? 'sp-prog' : 'sp-pend';
       const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
+      const attachClass = (task.files?.length > 0 || task.links?.length > 0) ? 'btn-desc has-data' : 'btn-desc';
       const titleAttr = (readOnly || isFromPlan)
         ? `readonly ${isFromPlan ? 'style="background:#F0F8FF;cursor:default"' : ''}`
         : '';
@@ -331,9 +338,13 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
           <input type="text" value="${task.title.replace(/"/g,'&quot;')}" ${titleAttr} />
           <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
           <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+          <button class="${attachClass} btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
           ${planBadge}
         </div>
         ${delBtn}`;
+
+      if(task.files && task.files.length > 0) r.setAttribute('data-files', JSON.stringify(task.files));
+      if(task.links && task.links.length > 0) r.setAttribute('data-links', JSON.stringify(task.links));
 
       tasksContainer.appendChild(r);
       setupTaskStatusHandlers(r); //? ผูก Event Listener ให้กับปุ่มสถานะในแถวงานนี้
@@ -644,7 +655,23 @@ async function autoSaveTasks() {
       let status = 'done';
       if (spills.querySelector('.sp-prog').classList.contains('on')) status = 'prog';
       else if (spills.querySelector('.sp-pend').classList.contains('on')) status = 'pend';
-      tasks.push({ id: idx + 1, title, status, description: row.getAttribute('data-desc') || '', from_plan: row.dataset.fromPlan === 'true' });
+      
+      let files = [];
+      let links = [];
+      try {
+        if(row.hasAttribute('data-files')) files = JSON.parse(row.getAttribute('data-files'));
+        if(row.hasAttribute('data-links')) links = JSON.parse(row.getAttribute('data-links'));
+      } catch(e) {}
+
+      tasks.push({ 
+        id: idx + 1, 
+        title, 
+        status, 
+        description: row.getAttribute('data-desc') || '', 
+        from_plan: row.dataset.fromPlan === 'true',
+        files,
+        links
+      });
     }
   });
   try {
@@ -671,7 +698,7 @@ document.getElementById('e-add').addEventListener('click', () => {
   const r = document.createElement('div');
   r.className = 'task-row';
   //? สร้างโครงสร้าง HTML สำหรับแถวงานใหม่
-  r.innerHTML = `<div class="tnum"></div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:5px"/><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+  r.innerHTML = `<div class="tnum"></div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:5px"/><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button><button class="btn-desc btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
   document.getElementById('e-tasks').appendChild(r);
   
   //? ตั้งสถานะเริ่มต้นเป็น "เสร็จแล้ว" (Done) และเปิดฟัง Event เปลี่ยนสถานะ
@@ -753,13 +780,22 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       if (spills.querySelector('.sp-prog').classList.contains('on')) status = 'prog';
       else if (spills.querySelector('.sp-pend').classList.contains('on')) status = 'pend';
       
+      let files = [];
+      let links = [];
+      try {
+        if(row.hasAttribute('data-files')) files = JSON.parse(row.getAttribute('data-files'));
+        if(row.hasAttribute('data-links')) links = JSON.parse(row.getAttribute('data-links'));
+      } catch(e) {}
+
       //? เพิ่มลงในรายการงานย่อย
       reportData.tasks.push({
         id: idx+1,
         title,
         status,
         description: row.getAttribute('data-desc') || '', //? รายละเอียดที่เก็บซ่อนไว้ใน Attribute
-        from_plan: row.dataset.fromPlan === 'true'        //? งานจากแผน: ชื่อจะถูกล็อกเมื่อโหลดซ้ำ
+        from_plan: row.dataset.fromPlan === 'true',       //? งานจากแผน: ชื่อจะถูกล็อกเมื่อโหลดซ้ำ
+        files,
+        links
       });
     }
   });
@@ -1196,3 +1232,238 @@ function getStatusSymbol(status) {
   if (status === 'prog') return '⋯'; //? กำลังทำ
   return '◯'; //? ยังไม่เริ่ม
 }
+
+//? เริ่มทำงานเมื่อโหลดโค้ดเสร็จ (ส่วนสุดท้ายของแอป)
+/* ── การแนบไฟล์และลิงก์ (Attachments) ── */
+let currentAttachRow = null;
+let tempFiles = [];
+let tempLinks = [];
+
+//? ฟังก์ชันเปิด Modal สำหรับแนบสื่อในแต่ละงาน
+window.openAttachModal = function(btn) {
+  currentAttachRow = btn.closest('.task-row');
+  
+  // นำข้อมูลออกจาก Row (ถ้ามี) มาพักไว้ในตัวแปรชั่วคราว
+  tempFiles = [];
+  tempLinks = [];
+  try {
+    if(currentAttachRow.hasAttribute('data-files')) tempFiles = JSON.parse(currentAttachRow.getAttribute('data-files'));
+    if(currentAttachRow.hasAttribute('data-links')) tempLinks = JSON.parse(currentAttachRow.getAttribute('data-links'));
+  } catch(e) {}
+  
+  // วาดข้อมูลลงบน Modal
+  renderAttachFiles();
+  renderAttachLinks();
+
+  // จัดการมุมมอง History Mode (ห้ามอัปโหลดเพิ่ม)
+  const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
+  document.getElementById('attach-file-input').disabled = isHistory;
+  document.getElementById('btn-upload-file').disabled = isHistory;
+  document.getElementById('attach-link-title').disabled = isHistory;
+  document.getElementById('attach-link-url').disabled = isHistory;
+  
+  const saveBtn = document.querySelector('#attach-modal .btn-save[onclick="saveAttachModal()"]');
+  if (saveBtn) saveBtn.style.display = isHistory ? 'none' : '';
+  
+  document.getElementById('attach-modal').classList.add('on');
+};
+
+window.closeAttachModal = function() {
+  document.getElementById('attach-modal').classList.remove('on');
+  currentAttachRow = null;
+};
+
+//? อัปเดตรายการไฟล์ใน UI ของ Modal
+window.renderAttachFiles = function() {
+  const list = document.getElementById('attach-files-list');
+  if(!list) return;
+  list.innerHTML = '';
+  if(tempFiles.length === 0) {
+    list.innerHTML = '<span style="color:var(--color-text-secondary);font-size:12px;">ไม่มีไฟล์แนบ</span>';
+    return;
+  }
+  
+  tempFiles.forEach((f, idx) => {
+    const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
+    const hideTrash = isHistory ? 'display:none;' : '';
+    list.innerHTML += `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--color-bg-primary);padding:6px 10px;border-radius:4px;border:1px solid var(--color-border-tertiary);font-size:12px;margin-bottom:4px;">
+        <a href="${f.url}" target="_blank" style="color:var(--color-text-primary);text-decoration:none;">📄 ${f.name}</a>
+        <button onclick="deleteAttachFile(${idx})" style="border:none;background:none;color:#E24B4A;cursor:pointer;${hideTrash}">🗑️</button>
+      </div>
+    `;
+  });
+};
+
+//? อัปเดตรายการลิงก์ใน UI ของ Modal
+window.renderAttachLinks = function() {
+  const list = document.getElementById('attach-links-list');
+  if(!list) return;
+  list.innerHTML = '';
+  if(tempLinks.length === 0) {
+    list.innerHTML = '<span style="color:var(--color-text-secondary);font-size:12px;">ไม่มีลิงก์แนบ</span>';
+    return;
+  }
+  
+  tempLinks.forEach((l, idx) => {
+    const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
+    const hideTrash = isHistory ? 'display:none;' : '';
+    list.innerHTML += `
+      <div style="display:flex;align-items:center;justify-content:space-between;background:var(--color-bg-primary);padding:6px 10px;border-radius:4px;border:1px solid var(--color-border-tertiary);font-size:12px;margin-bottom:4px;">
+        <a href="${l.url}" target="_blank" style="color:#1059A3;text-decoration:none;max-width:350px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔗 ${l.title || l.url}</a>
+        <button onclick="deleteAttachLink(${idx})" style="border:none;background:none;color:#E24B4A;cursor:pointer;${hideTrash}">🗑️</button>
+      </div>
+    `;
+  });
+};
+
+//? ฟังก์ชันลบลิงก์ (UI)
+window.deleteAttachLink = function(idx) {
+  const l = tempLinks[idx];
+  if(!l) return;
+  Swal.fire({
+    title: 'ยืนยันการลบลิงก์?',
+    text: 'คุณต้องการลบลิงก์นี้ใช่หรือไม่?',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#E24B4A',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'ลบลิงก์',
+    cancelButtonText: 'ยกเลิก'
+  }).then((result) => {
+    if (result.isConfirmed) {
+      tempLinks.splice(idx, 1);
+      renderAttachLinks();
+    }
+  });
+};
+
+//? ฟังก์ชันลบไฟล์ทั้งจาก UI และ Server
+window.deleteAttachFile = async function(idx) {
+  const f = tempFiles[idx];
+  if (!f) return;
+  
+  Swal.fire({
+    title: 'ยืนยันการลบไฟล์?',
+    text: `คุณต้องการลบไฟล์ "${f.name}" ใช่หรือไม่?`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#E24B4A',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'ลบไฟล์',
+    cancelButtonText: 'ยกเลิก'
+  }).then(async (result) => {
+    if (result.isConfirmed) {
+      // ดึงชื่อไฟล์จาก URL
+      const filename = f.url.split('/').pop();
+      try {
+        await fetch(`/api/upload/${filename}`, { method: "DELETE" });
+      } catch(e) {
+        console.warn("Could not delete file from server:", e);
+      }
+      
+      // ลบจาก UI
+      tempFiles.splice(idx, 1);
+      renderAttachFiles();
+    }
+  });
+};
+
+//? ฟังก์ชันอัปโหลดไฟล์ PDF
+window.uploadPdfFile = async function() {
+  const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
+  if (isHistory) return;
+  
+  if (tempFiles.length >= 5) {
+    Swal.fire({icon:'warning', title:'จำกัดสูงสุด', text:'สามารถแนบไฟล์ได้ 5 ไฟล์ต่องานเท่านั้น', confirmButtonColor:'#1059A3'});
+    return;
+  }
+  
+  const input = document.getElementById('attach-file-input');
+  if (!input.files || input.files.length === 0) {
+    Swal.fire({icon:'info', title:'กรุณาเลือกไฟล์', confirmButtonColor:'#1059A3'});
+    return;
+  }
+  
+  const file = input.files[0];
+  if(file.size > 10 * 1024 * 1024) {
+    Swal.fire({icon:'warning', title:'ไฟล์ใหญ่เกินขนาด', text:'จำกัดขนาดไม่เกิน 10MB', confirmButtonColor:'#1059A3'});
+    return;
+  }
+  
+  const btn = document.getElementById('btn-upload-file');
+  btn.disabled = true;
+  btn.textContent = "กำลังโหลด...";
+  
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  try {
+    const res = await fetch('/api/upload', {
+      method: "POST",
+      body: formData
+    });
+    if(res.ok) {
+      const data = await res.json();
+      tempFiles.push({name: data.name, url: data.url});
+      renderAttachFiles();
+      input.value = ""; // เคลียร์ฟอร์ม
+    } else {
+      const err = await res.json();
+      Swal.fire({icon:'error', title:'อัปโหลดไม่สำเร็จ', text:err.detail, confirmButtonColor:'#1059A3'});
+    }
+  } catch(e) {
+    Swal.fire({icon:'error', title:'การเชื่อมต่อล้มเหลว', text:e.message, confirmButtonColor:'#1059A3'});
+  }
+  btn.disabled = false;
+  btn.textContent = "อัปโหลด";
+};
+
+//? ฟังก์ชันเพิ่มลิงก์
+window.addLinkItem = function() {
+  const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
+  if (isHistory) return;
+  
+  if (tempLinks.length >= 5) {
+    Swal.fire({icon:'warning', title:'จำกัดสูงสุด', text:'สามารถแนบลิงก์ได้ 5 ลิงก์ต่องานเท่านั้น', confirmButtonColor:'#1059A3'});
+    return;
+  }
+  const tInput = document.getElementById('attach-link-title');
+  const uInput = document.getElementById('attach-link-url');
+  let title = tInput.value.trim();
+  let url = uInput.value.trim();
+  if(!url) return;
+  if(!url.startsWith('http')) url = 'http://' + url;
+  
+  tempLinks.push({title: title || url, url});
+  renderAttachLinks();
+  tInput.value = "";
+  uInput.value = "";
+};
+
+//? ยืนยันการแนบสื่อกลับเข้าสู่หน้าจอรายงาน
+window.saveAttachModal = function() {
+  if (typeof isHistoryMode !== 'undefined' && isHistoryMode) { closeAttachModal(); return; }
+  
+  if (currentAttachRow) {
+    // เซฟเป็น stringified payload
+    if(tempFiles.length > 0) currentAttachRow.setAttribute('data-files', JSON.stringify(tempFiles));
+    else currentAttachRow.removeAttribute('data-files');
+    
+    if(tempLinks.length > 0) currentAttachRow.setAttribute('data-links', JSON.stringify(tempLinks));
+    else currentAttachRow.removeAttribute('data-links');
+    
+    // อัปเดตการแสดงผลปุ่มให้รู้ว่ามีไฟล์
+    const btnAttach = currentAttachRow.querySelector('.btn-attach');
+    if (btnAttach) {
+      if (tempFiles.length > 0 || tempLinks.length > 0) btnAttach.classList.add('has-data');
+      else btnAttach.classList.remove('has-data');
+    }
+  }
+  closeAttachModal();
+  
+  // เซฟเข้า DB เผื่อรีเฟรชหน้าแล้วหาย
+  if (typeof currentReportId !== 'undefined' && typeof currentReportExists !== 'undefined') {
+    if (currentReportId && currentReportExists) autoSaveTasks();
+  }
+};

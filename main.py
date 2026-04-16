@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from routers import reports, admin, announcements, plans
+from routers import reports, admin, announcements, plans, uploads
 from models import LoginRequest, UserInfo, PasswordUpdateRequest
 from auth import create_access_token, get_current_user
 import os
@@ -22,6 +22,11 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="WFH Daily Report API", lifespan=lifespan)
+
+#? Mount โฟลเดอร์ uploads ไว้สำหรับเสิร์ฟไฟล์ PDF แบบ Static ให้ดาวน์โหลด/เปิดดูได้
+if not os.path.exists("uploads"):
+    os.makedirs("uploads")
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 #? จัดการ Error 404 ทุกกรณี — ให้แสดงหน้า 404.html แทน JSON error default ของ FastAPI
 @app.exception_handler(StarletteHTTPException)
@@ -196,6 +201,7 @@ app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(announcements.router, prefix="/api/announcements", tags=["Announcements"])
 app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])
+app.include_router(uploads.router, prefix="/api/upload", tags=["Uploads"])
 
 #? Page routes ต้องกำหนดก่อน app.mount() เสมอ มิฉะนั้น FastAPI จะไม่พบ route
 #? ให้หน้าแรก (Login) Serve ไฟล์ HTML โดยตรง ซ่อน URL จริงของไฟล์

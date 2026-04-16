@@ -456,13 +456,24 @@ function renderReportDetail(report) {
         const descBtn = t.description
           ? `<button class="btn-view-desc" onclick="viewDesc('${escapedDesc}')">📝 ดูรายละเอียด</button>`
           : '';
+
+        let attachHTML = '';
+        if ((t.files && t.files.length) || (t.links && t.links.length)) {
+          let fList = (t.files || []).map(f => `<a href="${f.url}" target="_blank" style="display:inline-flex;align-items:center;background:#E6F1FB;color:#1059A3;padding:2px 8px;border-radius:4px;font-size:11px;text-decoration:none;border:1px solid #B5D4F4;margin-right:6px;margin-top:4px;">📄 ${f.name}</a>`).join('');
+          let lList = (t.links || []).map(l => `<a href="${l.url}" target="_blank" style="display:inline-flex;align-items:center;background:#EEEDFE;color:#3C3489;padding:2px 8px;border-radius:4px;font-size:11px;text-decoration:none;border:1px solid #C4B8F5;margin-right:6px;margin-top:4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔗 ${l.title || l.url}</a>`).join('');
+          attachHTML = `<div style="margin-top:6px;padding-left:36px;display:flex;flex-wrap:wrap;">${fList}${lList}</div>`;
+        }
+
         return `
-          <div style="padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;justify-content:space-between;gap:8px">
-            <div style="display:flex;align-items:center;gap:10px;flex:1">
-              <span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)}</span>
-              <span style="font-size:14px;font-weight:500;color:var(--color-text-primary)">${t.title}</span>
+          <div style="padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+              <div style="display:flex;align-items:center;gap:10px;flex:1">
+                <span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)}</span>
+                <span style="font-size:14px;font-weight:500;color:var(--color-text-primary)">${(t.title || '').replace(/</g, '&lt;')}</span>
+              </div>
+              ${descBtn}
             </div>
-            ${descBtn}
+            ${attachHTML}
           </div>`;
       }).join('')
     : '<div style="padding:7px 0;color:var(--color-text-secondary)">ไม่มีงาน</div>';

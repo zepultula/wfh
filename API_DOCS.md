@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8000`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.3.0
+**Version:** 3.4.0
 
 ---
 
@@ -323,6 +323,35 @@ GET /api/reports?date=2026-04-15
 | Code | Detail |
 |------|--------|
 | 404 | Report not found |
+
+---
+
+### Uploads
+
+---
+
+#### 10. POST `/api/upload`
+
+อัปโหลดไฟล์สื่อเพื่อนำไปใช้ควบคู่กับงานรายวัน
+
+**Request Body** — `multipart/form-data`
+| Field | Type | Description |
+|-------|------|-------------|
+| `file` | File | ไฟล์ที่ต้องการอัปโหลด (อนุญาตเฉพาะ .pdf ขนาดไม่เกิน 10MB) |
+
+**Response 200**
+```json
+{
+  "name": "a1b2c3d4_document.pdf",
+  "url": "/uploads/a1b2c3d4_document.pdf"
+}
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | เฉพาะไฟล์ PDF เท่านั้น |
+| 401 | Not authenticated |
 
 ---
 
