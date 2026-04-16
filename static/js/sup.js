@@ -13,6 +13,9 @@ const thM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.
 const thD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 let currentReportId = null; //? เก็บ ID รายงานที่กำลังเปิดดูรายละเอียด
 let currentUser = null;     //? เก็บข้อมูลผู้ใช้ที่กำลัง Login อยู่ปัจจุบัน (สำหรับเรียกใช้ใน API)
+let annEditId = null;       //? null = สร้างใหม่, string = แก้ไขประกาศที่มีอยู่
+let _annsList = [];         //? cache รายการประกาศสำหรับ lookup ตอนเปิด edit modal
+let reviewWeekStart = null; //? สัปดาห์ที่กำลังดูในหน้ารีวิวแผนงาน (YYYY-MM-DD ของวันจันทร์)
 
 //? ฟังก์ชันเริ่มต้น: ดึงข้อมูลตัวตนจาก API เพื่อยืนยันสิทธิ์และปรับรูปแบบเมนูตามระดับ Level
 async function initUser() {
@@ -43,6 +46,19 @@ async function initUser() {
     //? เฉพาะกลุ่มหัวหน้างาน/ผู้บริหาร (Level 1 ขึ้นไป) จะเห็นเมนูสถิติ
     const btnSt = document.getElementById('btn-stats-mgmt');
     if (btnSt) btnSt.style.display = '';
+
+    //? Super Admin เท่านั้นที่เห็นเมนูจัดการประกาศ
+    const btnAnn = document.getElementById('btn-ann-mgmt');
+    if (btnAnn && (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin'))) {
+      btnAnn.style.display = '';
+    }
+
+    //? Admin ทุก level (1+) สามารถรีวิวแผนงานของลูกน้องได้
+    const btnPlans = document.getElementById('btn-plans-mgmt');
+    if (btnPlans) btnPlans.style.display = '';
+
+    //? ตรวจสอบและแสดง Modal ประกาศ (ครั้งเดียวต่อ Login session)
+    checkAndShowAnnouncement();
   } catch(e) {
     //? หากไม่มีสิทธิ์หรือ Session หมดอายุ ให้ส่งไปหน้า Login
     window.location.replace('/');
@@ -855,7 +871,7 @@ const levelLabelMap = { 0:'พนักงาน',1:'หัวหน้างา
 const avatarCycleColors = ['av-teal','av-purple','av-coral','av-amber','av-blue'];
 
 function setNavActive(activeId) {
-  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt'].forEach(id => {
+  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt','btn-ann-mgmt','btn-plans-mgmt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', id === activeId);
   });
@@ -1804,5 +1820,333 @@ async function exportDailyReportExcel() {
   } catch(e) {
     alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
     if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ANNOUNCEMENT MANAGEMENT (Super Admin เท่านั้น)
+   ════════════════════════════════════════════════════════════════ */
+
+//? แสดงหน้าจัดการประกาศ — ซ่อน view อื่นทั้งหมด
+function showAnnScreen() {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const el = document.getElementById('sup-ann');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-ann-mgmt');
+  loadAnnManagement();
+}
+
+//? กลับ Dashboard หลัก
+function hideAnnScreen() {
+  document.getElementById('sup-ann').style.display = 'none';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
+}
+
+//? โหลดรายการประกาศทั้งหมด (admin=1 เพื่อดูรวม inactive)
+async function loadAnnManagement() {
+  const rows = document.getElementById('ann-rows');
+  rows.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  try {
+    const res = await fetch('/api/announcements?admin=1');
+    if (!res.ok) throw new Error();
+    const anns = await res.json();
+    _annsList = anns;
+    renderAnnManagementTable(anns);
+  } catch(e) {
+    rows.innerHTML = '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่สามารถโหลดข้อมูลได้</div>';
+  }
+}
+
+//? แสดงตารางรายการประกาศ
+function renderAnnManagementTable(anns) {
+  const rows = document.getElementById('ann-rows');
+  if (!anns.length) {
+    rows.innerHTML = '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">ยังไม่มีประกาศ</div>';
+    return;
+  }
+  const targetLabel = { all: 'ทั้งหมด', employee: 'พนักงาน', admin: 'แอดมิน' };
+  rows.innerHTML = anns.map(a => `
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary)">
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:600">${a.title}</span>
+          <span class="bdg ${a.is_active ? 'bdg-green' : 'bdg-gray'}">${a.is_active ? 'เปิด' : 'ปิด'}</span>
+          <span class="bdg bdg-blue">${targetLabel[a.target] || a.target}</span>
+        </div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.5;white-space:pre-wrap;max-height:48px;overflow:hidden">${a.body}</div>
+        <div style="font-size:11px;color:var(--color-text-secondary);margin-top:4px">โดย: ${a.created_by} · ${a.created_at}</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end">
+        <button class="fb" onclick="openEditAnnModal('${a.id}')">แก้ไข</button>
+        <button class="fb" onclick="toggleAnnActive('${a.id}', ${!a.is_active})">${a.is_active ? 'ปิด' : 'เปิด'}</button>
+        <button class="fb" style="color:#e24b4a;border-color:#f5c0c0" onclick="deleteAnn('${a.id}')">ลบ</button>
+      </div>
+    </div>`).join('');
+}
+
+//? เปิด Modal สร้างประกาศใหม่
+function openCreateAnnModal() {
+  annEditId = null;
+  document.getElementById('ann-form-title').textContent = '📢 สร้างประกาศใหม่';
+  document.getElementById('ann-f-title').value = '';
+  document.getElementById('ann-f-body').value = '';
+  document.getElementById('ann-f-target').value = 'all';
+  document.getElementById('ann-f-active').checked = true;
+  document.getElementById('ann-form-modal').classList.add('on');
+}
+
+//? เปิด Modal แก้ไขประกาศที่มีอยู่
+function openEditAnnModal(id) {
+  const a = _annsList.find(x => x.id === id);
+  if (!a) return;
+  annEditId = id;
+  document.getElementById('ann-form-title').textContent = '📢 แก้ไขประกาศ';
+  document.getElementById('ann-f-title').value = a.title;
+  document.getElementById('ann-f-body').value = a.body;
+  document.getElementById('ann-f-target').value = a.target;
+  document.getElementById('ann-f-active').checked = a.is_active;
+  document.getElementById('ann-form-modal').classList.add('on');
+}
+
+window.closeAnnFormModal = function() {
+  document.getElementById('ann-form-modal').classList.remove('on');
+};
+
+//? บันทึกประกาศ (POST = สร้างใหม่, PATCH = แก้ไข)
+async function saveAnnouncement() {
+  const title = document.getElementById('ann-f-title').value.trim();
+  const body  = document.getElementById('ann-f-body').value.trim();
+  const target = document.getElementById('ann-f-target').value;
+  const is_active = document.getElementById('ann-f-active').checked;
+
+  if (!title || !body) {
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ', text: 'หัวข้อและเนื้อหาเป็นข้อมูลที่จำเป็น', confirmButtonColor: '#1059A3' });
+    return;
+  }
+
+  const url    = annEditId ? `/api/announcements/${annEditId}` : '/api/announcements';
+  const method = annEditId ? 'PATCH' : 'POST';
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, target, is_active })
+    });
+    if (!res.ok) throw new Error();
+    closeAnnFormModal();
+    loadAnnManagement();
+  } catch(e) {
+    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถบันทึกประกาศได้', confirmButtonColor: '#1059A3' });
+  }
+}
+
+//? สลับสถานะ active/inactive ของประกาศ
+async function toggleAnnActive(id, newState) {
+  try {
+    const res = await fetch(`/api/announcements/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: newState })
+    });
+    if (!res.ok) throw new Error();
+    loadAnnManagement();
+  } catch(e) {
+    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', confirmButtonColor: '#1059A3' });
+  }
+}
+
+//? ลบประกาศ (ต้องยืนยันก่อน)
+async function deleteAnn(id) {
+  const result = await Swal.fire({
+    title: 'ยืนยันการลบ?',
+    text: 'ประกาศนี้จะถูกลบออกถาวร ไม่สามารถกู้คืนได้',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#e74c3c',
+    cancelButtonColor: '#64748b',
+    confirmButtonText: 'ลบเลย',
+    cancelButtonText: 'ยกเลิก'
+  });
+  if (!result.isConfirmed) return;
+  try {
+    const res = await fetch(`/api/announcements/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error();
+    loadAnnManagement();
+  } catch(e) {
+    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', confirmButtonColor: '#1059A3' });
+  }
+}
+
+/* ── ระบบรีวิวแผนงานรายสัปดาห์ (Admin Plan Review) ── */
+
+//? helpers (คัดลอกมาจาก emp.js เพราะไม่มี shared utils file)
+function _getMondayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function _getWeekDates(mondayStr) {
+  const dates = [];
+  const d = new Date(mondayStr + 'T00:00:00');
+  for (let i = 0; i < 6; i++) {
+    dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+function _formatReviewWeekLabel(mondayStr) {
+  const dates = _getWeekDates(mondayStr);
+  const s = new Date(dates[0] + 'T00:00:00');
+  const e = new Date(dates[5] + 'T00:00:00');
+  return `${s.getDate()} ${thM[s.getMonth()]} — ${e.getDate()} ${thM[e.getMonth()]} ${e.getFullYear()+543}`;
+}
+
+//? แสดงหน้ารีวิวแผนงาน
+function showPlansScreen() {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const el = document.getElementById('sup-plans');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-plans-mgmt');
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  reviewWeekStart = _getMondayOfWeek(todayStr);
+  loadPlansReview();
+}
+
+//? ซ่อนหน้ารีวิวแผนงาน กลับหน้า Dashboard
+function hidePlansScreen() {
+  document.getElementById('sup-plans').style.display = 'none';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
+}
+
+//? เลื่อนสัปดาห์ในหน้ารีวิว
+function navigateReviewWeek(delta) {
+  const d = new Date(reviewWeekStart + 'T00:00:00');
+  d.setDate(d.getDate() + delta * 7);
+  reviewWeekStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  loadPlansReview();
+}
+
+//? ดึงแผนของลูกน้องทั้งหมดสำหรับสัปดาห์ที่ระบุ
+async function loadPlansReview() {
+  document.getElementById('review-week-label').textContent = _formatReviewWeekLabel(reviewWeekStart);
+  const container = document.getElementById('plans-review-container');
+  container.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  try {
+    const res = await fetch(`/api/plans/subordinates?week=${reviewWeekStart}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('Load failed');
+    const plans = await res.json();
+    renderPlansReview(plans);
+  } catch(e) {
+    container.innerHTML = '<div style="padding:1rem;color:var(--color-text-secondary);font-size:13px;text-align:center">ไม่สามารถโหลดแผนงานได้</div>';
+  }
+}
+
+//? วาดหน้ารีวิวแผนงาน — card ต่อพนักงาน
+function renderPlansReview(plans) {
+  const container = document.getElementById('plans-review-container');
+  if (!plans.length) {
+    container.innerHTML = '<div style="padding:1.5rem;color:var(--color-text-secondary);font-size:13px;text-align:center">ไม่มีแผนงานสำหรับสัปดาห์นี้</div>';
+    return;
+  }
+  const dayLabels = ['วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์'];
+  const dates = _getWeekDates(reviewWeekStart);
+
+  container.innerHTML = '';
+  plans.forEach(plan => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'padding:.875rem 1.25rem;margin-bottom:.875rem';
+
+    let daysHtml = '';
+    dates.forEach((dateStr, di) => {
+      const tasks = (plan.days || {})[dateStr] || [];
+      if (!tasks.length) return;
+      const d = new Date(dateStr + 'T00:00:00');
+      const dateLabel = `${dayLabels[di]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
+      let tasksHtml = tasks.map((t, i) => `
+        <div class="plan-task-row">
+          <span class="plan-task-num">${i+1}</span>
+          <div class="plan-task-body">
+            <div style="font-size:13px;font-weight:500">${escHtmlSup(t.title)}</div>
+            ${t.description ? `<div style="font-size:12px;color:var(--color-text-secondary)">${escHtmlSup(t.description)}</div>` : ''}
+            <span class="plan-task-approved ${t.approved ? 'yes' : 'no'}"
+                  onclick="approveTask('${plan.id}','${dateStr}',${t.id},${!t.approved},this)">
+              ${t.approved
+                ? `✓ อนุมัติแล้ว${t.approved_by ? ` โดย ${escHtmlSup(t.approved_by)}` : ''}`
+                : '○ รออนุมัติ'}
+            </span>
+          </div>
+        </div>`).join('');
+      daysHtml += `
+        <div style="margin-bottom:.75rem">
+          <div class="plan-day-hd" style="margin-bottom:.35rem">${dateLabel}</div>
+          ${tasksHtml}
+        </div>`;
+    });
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:.75rem">
+        <div class="av av-teal" style="width:28px;height:28px;font-size:11px;flex-shrink:0">${getInitials(plan.user_name || '?')}</div>
+        <div>
+          <div style="font-size:13px;font-weight:600">${escHtmlSup(plan.user_name || '—')}</div>
+          <div style="font-size:11px;color:var(--color-text-secondary)">${escHtmlSup(plan.department || '')}</div>
+        </div>
+      </div>
+      ${daysHtml || '<div style="font-size:12px;color:var(--color-text-secondary)">ไม่มีงานในสัปดาห์นี้</div>'}`;
+
+    container.appendChild(card);
+  });
+}
+
+function escHtmlSup(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+//? อนุมัติหรือยกเลิกงานในแผน — optimistic update (อัปเดต DOM ทันที ไม่ต้อง reload ทั้งหน้า)
+async function approveTask(planId, date, taskId, newApproved, el) {
+  //? บันทึกสถานะเดิมไว้ก่อน เพื่อ revert ถ้า API fail
+  const prevClass   = el.className;
+  const prevHtml    = el.innerHTML;
+  const prevOnclick = el.onclick;
+
+  //? อัปเดต UI ทันที (optimistic)
+  el.className = `plan-task-approved ${newApproved ? 'yes' : 'no'}`;
+  el.innerHTML  = newApproved
+    ? `✓ อนุมัติแล้ว${currentUser && currentUser.name ? ` โดย ${escHtmlSup(currentUser.name)}` : ''}`
+    : '○ รออนุมัติ';
+  el.onclick = null; //! ป้องกันกดซ้ำระหว่างรอ API
+
+  try {
+    const res = await fetch(`/api/plans/${planId}/approve`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ date, task_id: taskId, approved: newApproved })
+    });
+    if (!res.ok) throw new Error();
+    //? สำเร็จ — เปิด onclick ใหม่พร้อม toggle state
+    el.onclick = () => approveTask(planId, date, taskId, !newApproved, el);
+  } catch(e) {
+    //! fail — คืนค่าเดิมทั้งหมด
+    el.className = prevClass;
+    el.innerHTML  = prevHtml;
+    el.onclick    = prevOnclick;
+    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถอัปเดตสถานะการอนุมัติได้', confirmButtonColor: '#1059A3' });
   }
 }

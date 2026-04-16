@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Literal, Optional
 from datetime import datetime
 
 #? Model สำหรับเก็บข้อมูลพื้นฐานของพนักงานที่ผ่านการตรวจสอบสิทธิ์แล้ว (ใช้ใน Auth Token)
@@ -24,7 +24,9 @@ class TaskModel(BaseModel):
     title: str
     description: Optional[str] = ""
     #? สถานะของงาน: 'done' (เสร็จสิ้น), 'prog' (กำลังทำ), 'pend' (รอดำเนินการ)
-    status: str 
+    status: str
+    #? True = งานนี้มาจากแผนงานรายสัปดาห์ (ชื่องานจะถูกล็อกแก้ไขไม่ได้ในหน้าพนักงาน)
+    from_plan: Optional[bool] = False
 
 #? โครงสร้างพื้นฐานของรายงาน (Base Schema)
 class ReportBase(BaseModel):
@@ -74,6 +76,40 @@ class ReportOut(ReportBase):
 class PasswordUpdateRequest(BaseModel):
     new_password: str
     confirm_password: str
+
+#? โครงสร้างข้อมูลสำหรับสร้างประกาศใหม่
+class AnnouncementCreate(BaseModel):
+    title: str
+    body: str
+    is_active: bool = True
+    target: Literal["all", "employee", "admin"] = "all"
+
+#? โครงสร้างข้อมูลสำหรับอัปเดตประกาศ (ทุกฟิลด์เป็น Optional)
+class AnnouncementUpdate(BaseModel):
+    title: Optional[str] = None
+    body: Optional[str] = None
+    is_active: Optional[bool] = None
+    target: Optional[Literal["all", "employee", "admin"]] = None
+
+#? โครงสร้างงานแต่ละรายการในแผนงานรายสัปดาห์
+class PlanTask(BaseModel):
+    id: int
+    title: str
+    description: Optional[str] = ""
+    approved: bool = False
+    approved_by: Optional[str] = ""
+    approved_at: Optional[str] = ""
+
+#? สร้าง/อัปเดตแผนงานสำหรับสัปดาห์หนึ่ง (จันทร์–เสาร์)
+class WeeklyPlanCreate(BaseModel):
+    week_start: str   #? "YYYY-MM-DD" ต้องเป็นวันจันทร์เสมอ
+    days: dict        #? { "YYYY-MM-DD": List[PlanTask dict] }
+
+#? อนุมัติหรือยกเลิกการอนุมัติงานเดี่ยวในแผน
+class TaskApprovalUpdate(BaseModel):
+    date: str         #? "YYYY-MM-DD"
+    task_id: int
+    approved: bool
 
 #todo เพิ่มระบบ Data Validation (เช่น progress ต้องอยู่ระหว่าง 0-100 หรือตรวจสอบอีเมลที่ถูกต้อง) ในอนาคต
 #! ในปัจจุบันระบบยังไม่ได้จำกัดความยาวของ String ในฟิลด์ต่างๆ อาจทำให้เกิดปัญหาถ้าส่งข้อมูลยาวเกินไปลงใน Firestore

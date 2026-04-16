@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8000`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.0.1
+**Version:** 3.1.0
 
 ---
 
@@ -40,7 +40,7 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 |-------|-------|-------|
 | `0` | พนักงาน (Employee) | เห็นและแก้ไขรายงานของตนเองเท่านั้น |
 | `1–3` | หัวหน้างาน (Supervisor) | เห็นรายงานของตนเอง + ลูกน้องในสายบังคับบัญชา + ดูสถิติ/Export |
-| `9` หรือ role มี `admin` | ผู้ดูแลระบบ (Super Admin) | เห็นทุกคน + จัดการผู้ใช้ + จัดการสายบังคับบัญชา |
+| `9` หรือ role มี `admin` | ผู้ดูแลระบบ (Super Admin) | เห็นทุกคน + จัดการผู้ใช้ + จัดการสายบังคับบัญชา + จัดการประกาศ |
 
 ---
 
@@ -595,6 +595,133 @@ GET /api/admin/reports/export?date=2026-04-15
 
 ---
 
+### Announcements
+
+---
+
+#### 21. GET `/api/announcements`
+
+ดึงรายการประกาศ
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `admin` | `0` หรือ `1` | ไม่บังคับ | ถ้า `1` และ level==9 หรือ role มี `admin` → คืนทั้งหมด (รวม inactive) สำหรับหน้าจัดการ |
+
+**Behavior ตาม level:**
+- `level=0` (Employee): คืนประกาศที่ `is_active=True` และ `target` เป็น `"all"` หรือ `"employee"`
+- `level>=1` (Admin): คืนประกาศที่ `is_active=True` และ `target` เป็น `"all"` หรือ `"admin"`
+- Super Admin + `?admin=1`: คืนทั้งหมดโดยไม่ filter `is_active` เรียงตาม `created_at`
+
+**Response 200**
+```json
+[
+  {
+    "id": "abc123",
+    "title": "ปิดระบบวันศุกร์",
+    "body": "ระบบจะปิดให้บริการวันศุกร์ที่ 18 เม.ย. เวลา 18:00 น.",
+    "is_active": true,
+    "target": "all",
+    "created_at": "2026-04-16 10:30:00",
+    "created_by": "admin@rmutl.ac.th"
+  }
+]
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 401 | Not authenticated |
+
+---
+
+#### 22. POST `/api/announcements`
+
+สร้างประกาศใหม่ (Super Admin only)
+
+**Request Body**
+```json
+{
+  "title": "ประกาศสำคัญ",
+  "body": "เนื้อหาประกาศ...",
+  "is_active": true,
+  "target": "all"
+}
+```
+
+**ค่า `target` ที่ใช้ได้:** `"all"` · `"employee"` · `"admin"`
+
+**Response 201**
+```json
+{
+  "id": "abc123",
+  "title": "ประกาศสำคัญ",
+  "body": "เนื้อหาประกาศ...",
+  "is_active": true,
+  "target": "all",
+  "created_at": "2026-04-16 10:30:00",
+  "created_by": "admin@rmutl.ac.th"
+}
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 401 | Not authenticated |
+| 403 | Super admin only |
+
+---
+
+#### 23. PATCH `/api/announcements/{ann_id}`
+
+แก้ไขประกาศ (Partial update — ส่งเฉพาะฟิลด์ที่ต้องการแก้ไข) (Super Admin only)
+
+**Request Body** — ฟิลด์ทั้งหมด Optional
+```json
+{
+  "is_active": false
+}
+```
+
+**Response 200**
+```json
+{
+  "id": "abc123",
+  "title": "ประกาศสำคัญ",
+  "body": "เนื้อหาประกาศ...",
+  "is_active": false,
+  "target": "all",
+  "created_at": "2026-04-16 10:30:00",
+  "created_by": "admin@rmutl.ac.th"
+}
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | No fields to update |
+| 403 | Super admin only |
+| 404 | Announcement not found |
+
+---
+
+#### 24. DELETE `/api/announcements/{ann_id}`
+
+ลบประกาศถาวร (Super Admin only)
+
+**Response 200**
+```json
+{ "status": "deleted", "id": "abc123" }
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 403 | Super admin only |
+| 404 | Announcement not found |
+
+---
+
 ### Admin — Data Migration (Super Admin only)
 
 > Endpoints เหล่านี้ **Idempotent** — รันซ้ำกี่ครั้งก็ได้ผลเหมือนเดิม  
@@ -687,6 +814,19 @@ GET /api/admin/reports/export?date=2026-04-15
 
 ---
 
+### AnnouncementCreate (Request Body)
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `title` | string | บังคับ | หัวข้อประกาศ |
+| `body` | string | บังคับ | เนื้อหาประกาศ (รองรับ newline) |
+| `is_active` | bool | ไม่บังคับ (default `true`) | สถานะเปิด/ปิดประกาศ |
+| `target` | string | ไม่บังคับ (default `"all"`) | กลุ่มเป้าหมาย: `"all"` / `"employee"` / `"admin"` |
+
+### AnnouncementUpdate (Request Body)
+ฟิลด์เดียวกับ `AnnouncementCreate` แต่ทุกฟิลด์เป็น Optional (ส่งเฉพาะที่ต้องการแก้ไข)
+
+---
+
 ### MonthlyStatUser
 | Field | Type | Description |
 |-------|------|-------------|
@@ -735,3 +875,11 @@ Python SDK ใช้ `array_contains` ไม่ใช่ `array-contains`
 **Email ใน URL Path**  
 ต้อง `encodeURIComponent(email)` ฝั่ง client เพราะ email มี `@` และ `.`  
 FastAPI ใช้ `{email:path}` parameter type เพื่อรองรับ
+
+**Announcements — Super Admin Check**  
+`_require_super_admin` ใน `announcements.py` ตรวจสอบ `level == 9 OR 'admin' in role`  
+(เหมือนกับ `admin.py`) — ไม่ใช้ level == 9 อย่างเดียว เพื่อรองรับ user ที่มี role 'admin' แต่ level ≠ 9
+
+**Announcements — `is_active=False` ใน PATCH**  
+Filter `{k: v for k, v in data.model_dump().items() if v is not None}` ทำงานถูกต้องกับ `is_active=False`  
+เพราะ `False is not None` → True — ค่า `False` จะถูก include ใน update เสมอ

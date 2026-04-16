@@ -7,6 +7,8 @@ let currentReportId = null;      //? ID รายงาน (user_id_YYYY-MM-DD)
 let currentReportExists = false; //? สถานะการมีอยู่ของรายงานในฐานข้อมูล
 let viewDate = null;             //? วันที่ที่กำลังดู (null = วันปัจจุบัน)
 let isHistoryMode = false;       //? สถานะ "โหมดย้อนหลัง" (ถ้าจริง จะแก้ไขข้อมูลไม่ได้)
+let planWeekStart = null;        //? สัปดาห์ที่กำลังดูในหน้าแผนงาน (YYYY-MM-DD ของวันจันทร์)
+let _planData = {};              //? Cache ข้อมูลแผนงานที่โหลดมาล่าสุด
 
 //? ฟังก์ชันนาฬิกาและวันที่แบบ Real-time (อัปเดตทุก 1 วินาที เพื่อแสดงผลที่หน้าจอ)
 function tick(){
@@ -177,7 +179,15 @@ async function loadReport(dateStr) {
       populateEmployeeForm(report, isHistoryMode);
     } else {
       currentReportExists = false; //? รายงานใหม่ (ยังไม่เคยส่ง)
-      populateEmployeeForm(null, isHistoryMode);
+      //? ดึงงานจากแผนงานสำหรับวันนี้ (auto-inject) เฉพาะโหมดปัจจุบัน (ไม่ใช่ย้อนหลัง)
+      let plannedTasks = [];
+      if (!isHistoryMode) {
+        try {
+          const pr = await fetch(`/api/plans/tasks?date=${dateStr}`);
+          if (pr.ok) plannedTasks = await pr.json();
+        } catch(e) { /* ไม่มีแผนงาน หรือ network error — ไม่ต้องแสดง error */ }
+      }
+      populateEmployeeForm(null, isHistoryMode, plannedTasks);
     }
   } catch(e) {
     //! แจ้งเตือน: หากเกิดข้อผิดพลาดในการดึงข้อมูล (Network Error) ให้แสดงฟอร์มว่างปล่าว
@@ -192,7 +202,7 @@ function loadTodaysReport() { loadReport(getTodayStr()); }
 /* ── Populate form ── */
 /* ── นำข้อมูลลงฟอร์ม (Populate form) ── */
 //? ฟังก์ชันหลักในการวาด (Render) ข้อมูลรายงานลงในหน้าจอพนักงาน
-function populateEmployeeForm(report, readOnly) {
+function populateEmployeeForm(report, readOnly, plannedTasks = []) {
   const tasksContainer = document.getElementById('e-tasks');
   tasksContainer.innerHTML = '';
 
@@ -202,27 +212,50 @@ function populateEmployeeForm(report, readOnly) {
     ep(0);
     document.getElementById('e-problem').value = readOnly ? '' : '-';
     document.getElementById('e-plan').value = '';
-    
+
     //? ปิด/เปิด การแก้ไขตามสถานะ Read-only
     document.getElementById('e-prog').disabled = readOnly;
     document.getElementById('e-problem').readOnly = readOnly;
     document.getElementById('e-plan').readOnly = readOnly;
 
     if (!readOnly) {
-      //? หากอยู่ในโหมดแก้ไขได้ (วันปัจจุบัน): สร้างแถวงานเปล่าๆ ให้ 1 แถวเริ่มต้น
-      const r = document.createElement('div');
-      r.className = 'task-row';
-      r.innerHTML = `
-        <div class="tnum">1</div>
-        <div class="task-body">
-          <input type="text" placeholder="ระบุงานที่ทำ..." />
-          <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
-          <button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
-        </div>
-        <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
-      tasksContainer.appendChild(r);
-      setupTaskStatusHandlers(r);
-      r.querySelector('.sp-done').classList.add('on'); //? ค่าเริ่มต้นคือ "เสร็จแล้ว"
+      if (plannedTasks.length > 0) {
+        //? มีงานจากแผนงาน → pre-populate (ชื่องานล็อกแก้ไขไม่ได้)
+        plannedTasks.forEach((task, idx) => {
+          const r = document.createElement('div');
+          r.className = 'task-row';
+          r.dataset.fromPlan = 'true';
+          if (task.description) r.setAttribute('data-desc', task.description);
+          const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
+          r.innerHTML = `
+            <div class="tnum">${idx+1}</div>
+            <div class="task-body">
+              <input type="text" value="${task.title.replace(/"/g,'&quot;')}" readonly style="background:#F0F8FF;cursor:default" />
+              <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+              <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+              <span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>
+            </div>
+            <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+          tasksContainer.appendChild(r);
+          setupTaskStatusHandlers(r);
+          r.querySelector('.sp-pend').classList.add('on'); //? default = ยังไม่เริ่ม
+        });
+      } else {
+        //? ไม่มีแผนงาน → สร้างแถวงานเปล่าๆ 1 แถวเริ่มต้น
+        const r = document.createElement('div');
+        r.className = 'task-row';
+        r.innerHTML = `
+          <div class="tnum">1</div>
+          <div class="task-body">
+            <input type="text" placeholder="ระบุงานที่ทำ..." />
+            <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+            <button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+          </div>
+          <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+        tasksContainer.appendChild(r);
+        setupTaskStatusHandlers(r);
+        r.querySelector('.sp-done').classList.add('on'); //? ค่าเริ่มต้นคือ "เสร็จแล้ว"
+      }
     } else {
       //? หากเป็นพนักงานมาเปิดดู "ย้อนหลัง" แล้วไม่มีข้อมูล: แสดงข้อความแจ้งเตือน (📭)
       tasksContainer.innerHTML = '<div style="padding:10px 0;color:var(--color-text-secondary);font-size:13px;text-align:center">📭 ไม่พบรายงานในวันที่เลือก</div>';
@@ -263,24 +296,36 @@ function populateEmployeeForm(report, readOnly) {
       r.className = 'task-row';
       //? เก็บรายละเอียดงาน (Long description) ไว้ใน data-desc attribute เพื่อใช้ใน Modal
       if (task.description) r.setAttribute('data-desc', task.description);
-      
+      //? ทำเครื่องหมายงานที่มาจากแผนงาน (จะล็อก title ไม่ให้แก้ไข)
+      const isFromPlan = task.from_plan === true;
+      if (isFromPlan) r.dataset.fromPlan = 'true';
+
       //? คำนวณหา Class ของสถานะ (Status) และปุ่มรายละเอียด (Description)
       const statusClass = task.status === 'done' ? 'sp-done' : task.status === 'prog' ? 'sp-prog' : 'sp-pend';
       const descClass = task.description ? 'btn-desc has-data' : 'btn-desc';
-      
-      //? ในโหมดโหมดย้อนหลัง (ReadOnly) จะ "ไม่แสดง" ปุ่มลบงาน (Trash icon)
+
+      //? ชื่องานจากแผน: readonly เสมอ; งานทั่วไป: readonly เฉพาะโหมดย้อนหลัง
+      const titleAttr = (readOnly || isFromPlan)
+        ? `readonly ${isFromPlan ? 'style="background:#F0F8FF;cursor:default"' : ''}`
+        : '';
+
+      //? ในโหมดย้อนหลัง (ReadOnly) จะ "ไม่แสดง" ปุ่มลบงาน (Trash icon)
       const delBtn = readOnly ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
-      
+      const planBadge = isFromPlan
+        ? '<span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>'
+        : '';
+
       //? วาดโครงสร้างงานแต่ละข้อ
       r.innerHTML = `
         <div class="tnum">${idx+1}</div>
         <div class="task-body">
-          <input type="text" value="${task.title}" ${readOnly ? 'readonly' : ''} />
+          <input type="text" value="${task.title.replace(/"/g,'&quot;')}" ${titleAttr} />
           <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
           <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+          ${planBadge}
         </div>
         ${delBtn}`;
-      
+
       tasksContainer.appendChild(r);
       setupTaskStatusHandlers(r); //? ผูก Event Listener ให้กับปุ่มสถานะในแถวงานนี้
       r.querySelector('.' + statusClass).classList.add('on'); //? ใส่ Class "on" ให้กับสถานะที่ตรงกับ DB
@@ -339,6 +384,7 @@ async function initializeApp() {
     //? อัปเดตสถานะการนำทางวันที่ (Today/Historical) และโหลดรายงานฉบับปัจจุบัน
     updateDateNav();
     loadTodaysReport();
+    checkAndShowAnnouncement();
   } catch(e) {
     //! เตือน: หากโหลดข้อมูล User ไม่สำเร็จ (เช่น Token แปะมาผิด) ให้ส่งกลับหน้า Login ทันที
     console.error('Failed to load user info:', e);
@@ -589,7 +635,7 @@ async function autoSaveTasks() {
       let status = 'done';
       if (spills.querySelector('.sp-prog').classList.contains('on')) status = 'prog';
       else if (spills.querySelector('.sp-pend').classList.contains('on')) status = 'pend';
-      tasks.push({ id: idx + 1, title, status, description: row.getAttribute('data-desc') || '' });
+      tasks.push({ id: idx + 1, title, status, description: row.getAttribute('data-desc') || '', from_plan: row.dataset.fromPlan === 'true' });
     }
   });
   try {
@@ -699,11 +745,12 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       else if (spills.querySelector('.sp-pend').classList.contains('on')) status = 'pend';
       
       //? เพิ่มลงในรายการงานย่อย
-      reportData.tasks.push({ 
-        id: idx+1, 
-        title, 
-        status, 
-        description: row.getAttribute('data-desc') || '' //? รายละเอียดที่เก็บซ่อนไว้ใน Attribute
+      reportData.tasks.push({
+        id: idx+1,
+        title,
+        status,
+        description: row.getAttribute('data-desc') || '', //? รายละเอียดที่เก็บซ่อนไว้ใน Attribute
+        from_plan: row.dataset.fromPlan === 'true'        //? งานจากแผน: ชื่อจะถูกล็อกเมื่อโหลดซ้ำ
       });
     }
   });
@@ -845,6 +892,198 @@ function renderComments(comments, containerId) {
 //? สร้างตัวอักษรย่อสำหรับใช้ใน Avatar (เช่น "สมชาย ดีใจ" -> "สดี")
 function getInitials(name) {
   return name.split(' ').slice(0, 2).map(n => n.charAt(0)).join('').toUpperCase();
+}
+
+/* ── ระบบแผนงานรายสัปดาห์ (Weekly Plan) ── */
+
+//? คืน YYYY-MM-DD ของวันจันทร์ในสัปดาห์ที่มี dateStr
+function getMondayOfWeek(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+//? คืน array 6 วัน (จันทร์–เสาร์) จาก mondayStr
+function getWeekDates(mondayStr) {
+  const dates = [];
+  const d = new Date(mondayStr + 'T00:00:00');
+  for (let i = 0; i < 6; i++) {
+    dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
+    d.setDate(d.getDate() + 1);
+  }
+  return dates;
+}
+
+//? สร้าง Label แสดงช่วงสัปดาห์เป็นภาษาไทย เช่น "14 เม.ย. — 19 เม.ย. 2569"
+function formatPlanWeekLabel(mondayStr) {
+  const dates = getWeekDates(mondayStr);
+  const s = new Date(dates[0] + 'T00:00:00');
+  const e = new Date(dates[5] + 'T00:00:00');
+  return `${s.getDate()} ${thM[s.getMonth()]} — ${e.getDate()} ${thM[e.getMonth()]} ${e.getFullYear()+543}`;
+}
+
+//? Escape HTML เพื่อป้องกัน XSS เมื่อใส่ค่าลง innerHTML
+function escHtml(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+//? แสดงหน้าแผนงาน (ซ่อนฟอร์มรายงานปัจจุบัน)
+function showPlanView() {
+  document.getElementById('e-main').style.display = 'none';
+  document.getElementById('e-plan-view').style.display = '';
+  planWeekStart = getMondayOfWeek(getTodayStr());
+  loadPlanForWeek(planWeekStart);
+}
+
+//? ซ่อนหน้าแผนงาน กลับไปหน้าฟอร์มรายงาน
+function hidePlanView() {
+  document.getElementById('e-plan-view').style.display = 'none';
+  document.getElementById('e-main').style.display = '';
+}
+
+//? เลื่อนสัปดาห์ในหน้าแผนงาน (delta: -1 = ก่อนหน้า, +1 = ถัดไป)
+function navigatePlanWeek(delta) {
+  const d = new Date(planWeekStart + 'T00:00:00');
+  d.setDate(d.getDate() + delta * 7);
+  planWeekStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  loadPlanForWeek(planWeekStart);
+}
+
+//? ดึงแผนงานจาก API แล้ว render
+async function loadPlanForWeek(weekStart) {
+  document.getElementById('plan-week-label').textContent = formatPlanWeekLabel(weekStart);
+  const container = document.getElementById('plan-days-container');
+  container.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  try {
+    const res = await fetch(`/api/plans?week=${weekStart}`);
+    _planData = res.ok ? await res.json() : { days: {} };
+  } catch(e) {
+    _planData = { days: {} };
+  }
+  renderPlanDays(_planData, weekStart);
+}
+
+//? วาดหน้าแผนงาน — day cards (จ–ส) พร้อมช่อง input งานแต่ละวัน
+function renderPlanDays(planData, weekStart) {
+  const container = document.getElementById('plan-days-container');
+  const days = planData.days || {};
+  const dates = getWeekDates(weekStart);
+  const dayLabels = ['วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์'];
+  const trashSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/></svg>`;
+
+  container.innerHTML = '';
+  dates.forEach((dateStr, di) => {
+    const tasks = days[dateStr] || [];
+    const d = new Date(dateStr + 'T00:00:00');
+    const dateLabel = `${dayLabels[di]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
+
+    const card = document.createElement('div');
+    card.className = 'plan-day-card';
+    card.dataset.date = dateStr;
+
+    let tasksHtml = '';
+    tasks.forEach((t, i) => {
+      const isApproved = t.approved === true;
+      const isRejected = !t.approved && t.approved_by;
+      const approvalBadge = isApproved
+        ? `<span class="plan-task-approved yes" style="font-size:11px;cursor:default">✓ อนุมัติแล้ว</span>`
+        : isRejected
+        ? `<span class="plan-task-approved no" style="font-size:11px;cursor:default;background:#FFEBEE;color:#C62828">✗ ไม่อนุมัติ</span>`
+        : '';
+      tasksHtml += `
+        <div class="plan-input-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" data-task-id="${t.id}">
+          <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${i+1}</span>
+          <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+            <input type="text" class="inp plan-task-title" value="${escHtml(t.title)}" placeholder="ชื่องาน..." style="font-size:13px${isApproved ? ';background:#F0F8FF;cursor:default' : ''}" ${isApproved ? 'readonly' : ''}>
+            <input type="text" class="inp plan-task-desc" value="${escHtml(t.description||'')}" placeholder="คำอธิบาย (ไม่บังคับ)..." style="font-size:12px">
+            ${approvalBadge}
+          </div>
+          <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px${isApproved ? ';opacity:0.3;pointer-events:none' : ''}" ${isApproved ? 'disabled' : ''}>${trashSvg}</button>
+        </div>`;
+    });
+
+    card.innerHTML = `
+      <div class="plan-day-hd">${dateLabel}</div>
+      <div class="plan-tasks-list">${tasksHtml}</div>
+      <button class="nav-btn nav-btn-back" style="margin-top:6px;font-size:11px" onclick="addPlanTaskRow(this)">+ เพิ่มงาน</button>`;
+
+    container.appendChild(card);
+  });
+}
+
+//? เพิ่มแถวงานใหม่ในวัน (dateStr) ที่ระบุ
+function addPlanTaskRow(btn) {
+  const list = btn.previousElementSibling; // .plan-tasks-list
+  const count = list.querySelectorAll('.plan-input-row').length;
+  const trashSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/></svg>`;
+  const row = document.createElement('div');
+  row.className = 'plan-input-row';
+  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:flex-start';
+  row.innerHTML = `
+    <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${count+1}</span>
+    <div style="flex:1;display:flex;flex-direction:column;gap:4px">
+      <input type="text" class="inp plan-task-title" placeholder="ชื่องาน..." style="font-size:13px">
+      <input type="text" class="inp plan-task-desc" placeholder="คำอธิบาย (ไม่บังคับ)..." style="font-size:12px">
+    </div>
+    <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px">${trashSvg}</button>`;
+  list.appendChild(row);
+  row.querySelector('.plan-task-title').focus();
+}
+
+//? ลบแถวงานออกจาก day card แล้ว re-index
+function removePlanTaskRow(btn) {
+  const row = btn.closest('.plan-input-row');
+  const list = row.parentElement;
+  row.remove();
+  list.querySelectorAll('.plan-input-row').forEach((r, i) => {
+    r.querySelector('span').textContent = i + 1;
+  });
+}
+
+//? บันทึกแผนงาน → POST /api/plans
+async function savePlan() {
+  const btn = document.getElementById('btn-save-plan');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  const days = {};
+  document.querySelectorAll('.plan-day-card').forEach(card => {
+    const dateStr = card.dataset.date;
+    const tasks = [];
+    let nextNewId = 10000; // ใช้ ID สูงสำหรับงานใหม่ที่ยังไม่มี ID
+    card.querySelectorAll('.plan-input-row').forEach(row => {
+      const title = row.querySelector('.plan-task-title').value.trim();
+      if (title) {
+        const storedId = parseInt(row.dataset.taskId, 10);
+        const id = isNaN(storedId) ? nextNewId++ : storedId;
+        tasks.push({ id, title, description: row.querySelector('.plan-task-desc').value.trim() });
+      }
+    });
+    if (tasks.length > 0) days[dateStr] = tasks;
+  });
+
+  try {
+    const res = await fetch('/api/plans', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_start: planWeekStart, days })
+    });
+    if (res.ok) {
+      _planData = await res.json();
+      Swal.fire({ icon: 'success', title: 'บันทึกแล้ว!', text: 'แผนงานสัปดาห์นี้ถูกบันทึกเรียบร้อย', confirmButtonColor: '#2E7D32', timer: 2000, showConfirmButton: false });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.detail || 'บันทึกไม่สำเร็จ', confirmButtonColor: '#1059A3' });
+    }
+  } catch(e) {
+    Swal.fire({ icon: 'error', title: 'เชื่อมต่อล้มเหลว', text: e.message, confirmButtonColor: '#1059A3' });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 
 //? คืนค่า Class ของสถานะสำหรับสี Badge

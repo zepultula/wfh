@@ -25,6 +25,8 @@
       <button class="nav-btn nav-btn-blue" id="btn-users-mgmt" onclick="showUsersScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>จัดการผู้ใช้</button>
       <button class="nav-btn nav-btn-indigo" id="btn-evals-mgmt" onclick="showEvalsScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>สายบังคับบัญชา</button>
       <button class="nav-btn nav-btn-teal" id="btn-stats-mgmt" onclick="showStatsScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>สถิติรายเดือน</button>
+      <button class="nav-btn nav-btn-amber" id="btn-ann-mgmt" onclick="showAnnScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>จัดการประกาศ</button>
+      <button class="nav-btn nav-btn-green" id="btn-plans-mgmt" onclick="showPlansScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>รีวิวแผนงาน</button>
 
       <div class="user-menu-wrap" id="user-menu-wrap">
         <div class="user-menu-btn" onclick="toggleUserMenu(event)">
@@ -179,6 +181,35 @@
         <div id="stats-rows">
           <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- announcement management view -->
+  <div id="sup-ann" style="display:none">
+    <div class="pg">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px">
+        <button class="back-btn" onclick="hideAnnScreen()"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>กลับ Dashboard</button>
+        <button class="btn-send" onclick="openCreateAnnModal()">+ สร้างประกาศใหม่</button>
+      </div>
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div class="sec-lbl" style="margin-bottom:.75rem">รายการประกาศทั้งหมด</div>
+        <div id="ann-rows"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- plan review view -->
+  <div id="sup-plans" style="display:none">
+    <div class="pg">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:1rem;flex-wrap:wrap">
+        <button class="back-btn" onclick="hidePlansScreen()"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>กลับ Dashboard</button>
+        <button class="nav-btn nav-btn-back" onclick="navigateReviewWeek(-1)" title="สัปดาห์ก่อนหน้า">‹</button>
+        <span id="review-week-label" style="font-size:13px;font-weight:600;color:var(--color-text-primary)">—</span>
+        <button class="nav-btn nav-btn-back" onclick="navigateReviewWeek(1)" title="สัปดาห์ถัดไป">›</button>
+      </div>
+      <div id="plans-review-container">
+        <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
       </div>
     </div>
   </div>
@@ -403,7 +434,58 @@
   </div>
 </div>
 
+<!-- Announcement Display Modal -->
+<div class="modal-ov" id="ann-modal">
+  <div class="modal-bx" style="max-width:520px;">
+    <div class="modal-hd">
+      <div class="modal-ttl">📢 ประกาศ</div>
+      <button class="modal-cls" onclick="closeAnnModal()">&times;</button>
+    </div>
+    <div class="modal-bd" id="ann-modal-body"></div>
+    <div class="modal-ft">
+      <button class="btn-save" onclick="closeAnnModal()">รับทราบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Create/Edit Announcement Modal -->
+<div class="modal-ov" id="ann-form-modal">
+  <div class="modal-bx" style="max-width:520px;">
+    <div class="modal-hd">
+      <div class="modal-ttl" id="ann-form-title">📢 สร้างประกาศใหม่</div>
+      <button class="modal-cls" onclick="closeAnnFormModal()">&times;</button>
+    </div>
+    <div class="modal-bd" style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div class="fl" style="margin-bottom:4px">หัวข้อ <span style="color:#e24b4a">*</span></div>
+        <input class="inp" id="ann-f-title" placeholder="หัวข้อประกาศ">
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">เนื้อหา <span style="color:#e24b4a">*</span></div>
+        <textarea class="inp" id="ann-f-body" rows="5" placeholder="เนื้อหาประกาศ..." style="resize:vertical"></textarea>
+      </div>
+      <div>
+        <div class="fl" style="margin-bottom:4px">กลุ่มเป้าหมาย</div>
+        <select class="inp" id="ann-f-target">
+          <option value="all">ทั้งหมด (all)</option>
+          <option value="employee">พนักงาน (employee)</option>
+          <option value="admin">แอดมิน (admin)</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="checkbox" id="ann-f-active" checked style="width:auto;cursor:pointer">
+        <label for="ann-f-active" class="fl" style="margin:0;cursor:pointer">เปิดใช้งาน</label>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="fb" onclick="closeAnnFormModal()">ยกเลิก</button>
+      <button class="btn-save" onclick="saveAnnouncement()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <script src="/static/js/header.js?v=1.3.0"></script>
+<script src="/static/js/announcements.js?v=1.0.0"></script>
 <script src="/static/js/sup.js?v=1.2.1"></script>
 <script src="/static/js/footer.js?v=1.3.0"></script>
 </body>

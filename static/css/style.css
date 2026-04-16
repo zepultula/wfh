@@ -73,8 +73,24 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 .nav-btn-indigo:hover,.nav-btn-indigo.active{background:#3C3489;color:#fff;border-color:#3C3489;box-shadow:0 2px 8px rgba(60,52,137,.25)}
 .nav-btn-teal{background:#E8F6EE;color:#1B6E3C;border-color:#82CFA0}
 .nav-btn-teal:hover,.nav-btn-teal.active{background:#1B6E3C;color:#fff;border-color:#1B6E3C;box-shadow:0 2px 8px rgba(27,110,60,.25)}
+.nav-btn-amber{background:#FFF8E8;color:#8B5A00;border-color:#F0C040}
+.nav-btn-amber:hover,.nav-btn-amber.active{background:#B8860B;color:#fff;border-color:#B8860B;box-shadow:0 2px 8px rgba(184,134,11,.25)}
 .nav-btn-danger{background:#ffeded;color:#e74c3c;border-color:#ffd0d0}
 .nav-btn-danger:hover{background:#e74c3c;color:#fff;border-color:#e74c3c;box-shadow:0 2px 8px rgba(231,76,60,.25)}
+.nav-btn-green{background:#E8F5E9;color:#1B5E20;border-color:#81C784}
+.nav-btn-green:hover,.nav-btn-green.active{background:#2E7D32;color:#fff;border-color:#2E7D32;box-shadow:0 2px 8px rgba(46,125,50,.25)}
+
+/* ── Plan view ── */
+.plan-day-card{background:var(--color-background-primary);border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:.75rem 1rem;margin-bottom:.75rem}
+.plan-day-hd{font-size:12px;font-weight:600;color:var(--color-text-secondary);margin-bottom:.5rem;letter-spacing:.04em}
+.plan-task-row{display:flex;align-items:flex-start;gap:8px;padding:.45rem 0;border-bottom:1px solid var(--color-border-tertiary)}
+.plan-task-row:last-child{border-bottom:none}
+.plan-task-num{font-size:12px;color:var(--color-text-secondary);min-width:18px;padding-top:7px;flex-shrink:0}
+.plan-task-body{flex:1;display:flex;flex-direction:column;gap:4px}
+.plan-task-approved{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:10px;cursor:pointer;user-select:none;width:fit-content}
+.plan-task-approved.yes{background:#E8F5E9;color:#2E7D32}
+.plan-task-approved.no{background:#F5F5F5;color:#9E9E9E}
+.plan-task-approved.no:hover{background:#E8F5E9;color:#2E7D32}
 
 /* ── page body ── */
 .pg{padding:1.5rem;max-width:none}

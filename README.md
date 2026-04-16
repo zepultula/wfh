@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v3.0.0
+## 🚀 คุณสมบัติเด่น (Features) - v3.1.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน
@@ -47,7 +47,12 @@
 - **Excel ละเอียด:** ส่งออกรายงานประจำวันเป็น `.xlsx` พร้อมรายการงาน สถานะ ปัญหา คอมเมนต์ และรายชื่อผู้ยังไม่ส่ง
 - **Loading Animation:** ปุ่มดาวน์โหลดแสดง Spinner และ Disabled ระหว่างรอข้อมูล
 
-### 7. UI/UX Visual Polish (v2.7.0)
+### 7. ระบบประกาศ (Announcement System) — v3.1.0
+- **Announcement Modal:** แสดงประกาศครั้งเดียวต่อ Login session — ปิดหน้าต่างหรือ Login ใหม่จะแสดงซ้ำอีกครั้ง
+- **กลุ่มเป้าหมาย:** Super Admin กำหนดได้ว่าแต่ละประกาศจะแสดงต่อ "ทุกคน", "พนักงาน" หรือ "แอดมิน"
+- **จัดการประกาศ:** Super Admin สร้าง/แก้ไข/เปิด-ปิด/ลบประกาศผ่านเมนู "จัดการประกาศ" (ปุ่มสีทอง) ในหน้า Admin
+
+### 8. UI/UX Visual Polish (v2.7.0)
 - **Login Loading UX:** ปุ่มเข้าสู่ระบบแสดง Spinner ระหว่าง API call + Full-page overlay ก่อน redirect
 - **Submit Loading:** ปุ่มส่งรายงานแสดง Spinner ระหว่าง API call
 - **Work Mode Colors:** ปุ่มรูปแบบทำงาน WFH (น้ำเงิน) / On-site (เขียว) / Hybrid (ม่วง) — สีตรงกันทุกหน้า
@@ -57,7 +62,7 @@
 - **Excel Buttons:** SVG table grid icon + gradient สีเขียว
 - **Smooth Animations:** Page transition fade+slide (.22s) และ Collapsible table max-height transition (.28s) ที่ smooth ด้วย `requestAnimationFrame`
 
-### 8. Clean URL, Custom Pages & UX Polish (v2.8.0)
+### 9. Clean URL, Custom Pages & UX Polish (v2.8.0)
 - **Clean URLs:** ซ่อน path จริงของไฟล์ HTML — เข้าผ่าน `/`, `/employee`, `/admin`, `/logout` แทน `/static/*.html`
 - **Custom 404 Page:** หน้า Error ที่ออกแบบให้เข้ากับ Login — glass card + blobs animation, แสดง URL ที่ไม่พบ, ปุ่มกลับหน้าหลัก
 - **Logout Page:** หน้าออกจากระบบที่สมบูรณ์ — เคลียร์ Token ทันที, แสดงชื่อผู้ใช้ที่ logout, progress bar นับถอยหลัง 3 วินาที
@@ -75,7 +80,8 @@ wfh/
 ├── database.py              # Firebase Admin SDK configuration (Singleton)
 ├── routers/
 │   ├── reports.py           # CRUD logic for reports & comments (with RBAC)
-│   └── admin.py             # User Management, Evaluations, Stats & Export
+│   ├── admin.py             # User Management, Evaluations, Stats & Export
+│   └── announcements.py     # Announcement CRUD (Super Admin) + display endpoint
 ├── static/
 │   ├── index.html           # Landing & Login page  → เข้าถึงผ่าน /
 │   ├── employee.html        # Employee dashboard    → เข้าถึงผ่าน /employee
@@ -87,6 +93,7 @@ wfh/
 │   └── js/
 │       ├── emp.js           # Frontend logic for employees
 │       ├── sup.js           # Frontend logic for supervisors
+│       ├── announcements.js # Shared announcement modal logic
 │       ├── header.js        # Global header & Interceptor (Auth logic)
 │       └── footer.js        # Global footer
 └── API_DOCS.md              # Detailed API documentation
@@ -107,6 +114,10 @@ wfh/
 ### 3. Collection: `reports`
 เก็บรายงานรายวันและคอมเมนต์ (Document ID: `{user_id}_{YYYY-MM-DD}`)
 - Fields: `user_id`, `name`, `work_mode`, `progress`, `problems`, `tasks[]`, `comments[]`, `timestamp`
+
+### 4. Collection: `announcements`
+เก็บประกาศจากผู้ดูแลระบบ (Document ID: auto-generated)
+- Fields: `title`, `body`, `is_active`, `target` (`all`/`employee`/`admin`), `created_at`, `created_by`
 
 ---
 
@@ -165,6 +176,10 @@ wfh/
 | GET | `/api/admin/stats?month=YYYY-MM` | สถิติรายเดือน (Admin Level 1+, กรองตามสิทธิ์) |
 | GET | `/api/admin/stats/export?month=YYYY-MM` | ส่งออก Excel สถิติรายเดือน (Admin Level 1+) |
 | GET | `/api/admin/reports/export?date=YYYY-MM-DD` | ส่งออก Excel รายงานประจำวันละเอียด (Admin Level 1+) |
+| GET | `/api/announcements` | ดึงประกาศ active ตาม target/level (หรือทั้งหมดสำหรับ `?admin=1` + Super Admin) |
+| POST | `/api/announcements` | สร้างประกาศใหม่ (Super Admin only) |
+| PATCH | `/api/announcements/{id}` | แก้ไขประกาศ (Super Admin only) |
+| DELETE | `/api/announcements/{id}` | ลบประกาศ (Super Admin only) |
 
 > ดูรายละเอียด API ทั้งหมดได้ที่ [API_DOCS.md](API_DOCS.md)
 
@@ -182,6 +197,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.0.0
+- **เวอร์ชัน:** 3.1.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก
