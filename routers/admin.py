@@ -6,7 +6,18 @@ from pydantic import BaseModel
 from typing import Optional, List
 import re
 import calendar
+import bcrypt
 from datetime import date as date_mod
+
+
+#? ตรวจสอบว่ารหัสผ่านนี้ผ่านการ hash ด้วย bcrypt แล้วหรือยัง
+def _is_hashed(password: str) -> bool:
+    return password.startswith("$2b$") or password.startswith("$2a$")
+
+
+#? Hash รหัสผ่านด้วย bcrypt (rounds=12) — ใช้ก่อนบันทึกลง Firestore เสมอ
+def _hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 #? กำหนด Router สำหรับระบบจัดการของ Admin
 router = APIRouter()
@@ -114,6 +125,8 @@ def create_user(user: UserCreate, authorization: str = Header(None)):
     if db.collection("users").document(email).get().exists:
         raise HTTPException(status_code=409, detail="Email นี้มีอยู่ในระบบแล้ว")
     user_dict = user.model_dump()
+    #? Hash รหัสผ่านก่อนบันทึก — ไม่เก็บ plaintext ลง Firestore เด็ดขาด
+    user_dict["password"] = _hash_password(user_dict["password"])
     db.collection("users").document(email).set(user_dict)
     return {"success": True, "email": email}
 
@@ -127,6 +140,9 @@ def update_user(email: str, update: UserUpdate, authorization: str = Header(None
     update_data = update.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
+    #? ถ้ามีการส่ง password มาด้วย ให้ hash ก่อนบันทึก
+    if "password" in update_data and update_data["password"]:
+        update_data["password"] = _hash_password(update_data["password"])
     doc_ref.update(update_data)
     return {"success": True}
 

@@ -11,8 +11,28 @@ from routers import reports, admin, announcements, plans, uploads
 from models import LoginRequest, UserInfo, PasswordUpdateRequest
 from auth import create_access_token, get_current_user
 import os
+import bcrypt
 from contextlib import asynccontextmanager
 from database import get_db
+
+
+#? ตรวจสอบว่ารหัสผ่านนี้ผ่านการ hash ด้วย bcrypt แล้วหรือยัง
+def _is_hashed(password: str) -> bool:
+    return password.startswith("$2b$") or password.startswith("$2a$")
+
+
+#? Hash รหัสผ่านด้วย bcrypt (rounds=12)
+def _hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
+
+
+#? เปรียบเทียบรหัสผ่านกับ hash ที่เก็บไว้ (รองรับทั้ง bcrypt hash และ plaintext เพื่อ Lazy Migration)
+def _verify_password(plain: str, stored: str) -> bool:
+    if _is_hashed(stored):
+        #? รหัสผ่าน hash แล้ว — ใช้ bcrypt เปรียบเทียบ
+        return bcrypt.checkpw(plain.encode("utf-8"), stored.encode("utf-8"))
+    #? รหัสผ่านยังเป็น plaintext (ยังไม่ migrate) — เปรียบเทียบตรงๆ
+    return plain == stored
 
 #? กำหนดสิ่งที่จะให้ระบบทำทันทีที่เริ่มรันหรือปิดตัวลง (Lifespan Events)
 @asynccontextmanager
@@ -83,8 +103,16 @@ def login(req: LoginRequest):
             raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 
     user_data = doc.to_dict()
-    if user_data.get("password") != req.password:
+    stored_pw = user_data.get("password", "")
+
+    if not _verify_password(req.password, stored_pw):
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+
+    #? Lazy Migration — ถ้ารหัสผ่านยังเป็น plaintext ให้ hash แล้วเขียนทับลง Firestore ทันที
+    if not _is_hashed(stored_pw):
+        db.collection("users").document(doc.id).update({
+            "password": _hash_password(req.password)
+        })
 
     #? ใช้ doc.id (Document ID = email) เป็น sub เพื่อให้ตรงกันทั้งกรณีกรอกเต็มและ username ย่อ
     token = create_access_token({
@@ -140,8 +168,9 @@ def update_my_password(req: PasswordUpdateRequest, current_user: dict = Depends(
     if not user_ref.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
         
+    #? Hash รหัสผ่านใหม่ก่อนบันทึกลง Firestore — ไม่เก็บ plaintext เด็ดขาด
     user_ref.update({
-        "password": req.new_password
+        "password": _hash_password(req.new_password)
     })
     
     return {"status": "success", "message": "Password updated successfully"}
