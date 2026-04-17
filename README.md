@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v3.4.0
+## 🚀 คุณสมบัติเด่น (Features) - v3.5.0
 
 ### 1. การจัดการรายงานรายวัน (Core Features)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน
@@ -60,7 +60,14 @@
 - **กลุ่มเป้าหมาย:** Super Admin กำหนดได้ว่าแต่ละประกาศจะแสดงต่อ "ทุกคน", "พนักงาน" หรือ "แอดมิน"
 - **จัดการประกาศ:** Super Admin สร้าง/แก้ไข/เปิด-ปิด/ลบประกาศผ่านเมนู "จัดการประกาศ" (ปุ่มสีทอง) ในหน้า Admin
 
-### 8. UI/UX Visual Polish (v2.7.0)
+### 8. ระบบประหยัดน้ำมัน WFH (Fuel Savings) — v3.5.0
+- **ตั้งค่าการเดินทาง:** พนักงานกรอกระยะทางไป-กลับ, อัตราสิ้นเปลือง, ราคาน้ำมัน และค่าทางด่วน/จอดรถเพียงครั้งเดียว
+- **Price History:** เมื่อราคาน้ำมันเปลี่ยน ระบุ "วันที่มีผล" และ append ราคาใหม่ลงใน history — ระบบเลือกราคาที่ถูกต้องสำหรับแต่ละวันโดยอัตโนมัติ
+- **ประหยัดรายอาทิตย์:** ใช้ราคาน้ำมัน ณ วันจันทร์ต้นอาทิตย์ × วัน WFH ในอาทิตย์นั้น พร้อม ‹ › เลื่อนดูย้อนหลัง
+- **ประหยัดรายเดือน:** คำนวณต่อวัน (per-day price) — แม่นยำสูงสุดแม้ราคาเปลี่ยนกลางเดือน
+- **Admin View:** ดูสรุปค่าน้ำมันที่ประหยัดได้รายบุคคลทั้งองค์กร พร้อม info box อธิบายสูตรคำนวณ
+
+### 9. UI/UX Visual Polish (v2.7.0)
 - **Login Loading UX:** ปุ่มเข้าสู่ระบบแสดง Spinner ระหว่าง API call + Full-page overlay ก่อน redirect
 - **Submit Loading:** ปุ่มส่งรายงานแสดง Spinner ระหว่าง API call
 - **Work Mode Colors:** ปุ่มรูปแบบทำงาน WFH (น้ำเงิน) / On-site (เขียว) / Hybrid (ม่วง) — สีตรงกันทุกหน้า
@@ -70,7 +77,7 @@
 - **Excel Buttons:** SVG table grid icon + gradient สีเขียว
 - **Smooth Animations:** Page transition fade+slide (.22s) และ Collapsible table max-height transition (.28s) ที่ smooth ด้วย `requestAnimationFrame`
 
-### 9. Clean URL, Custom Pages & UX Polish (v2.8.0)
+### 10. Clean URL, Custom Pages & UX Polish (v2.8.0)
 - **Clean URLs:** ซ่อน path จริงของไฟล์ HTML — เข้าผ่าน `/`, `/employee`, `/admin`, `/logout` แทน `/static/*.html`
 - **Custom 404 Page:** หน้า Error ที่ออกแบบให้เข้ากับ Login — glass card + blobs animation, แสดง URL ที่ไม่พบ, ปุ่มกลับหน้าหลัก
 - **Logout Page:** หน้าออกจากระบบที่สมบูรณ์ — เคลียร์ Token ทันที, แสดงชื่อผู้ใช้ที่ logout, progress bar นับถอยหลัง 3 วินาที
@@ -90,7 +97,8 @@ wfh/
 │   ├── reports.py           # CRUD logic for reports & comments (with RBAC)
 │   ├── admin.py             # User Management, Evaluations, Stats & Export
 │   ├── announcements.py     # Announcement CRUD (Super Admin) + display endpoint
-│   └── plans.py             # Weekly Work Plan CRUD + approval endpoints
+│   ├── plans.py             # Weekly Work Plan CRUD + approval endpoints
+│   └── fuel.py              # Fuel savings: settings, price history, weekly/monthly, admin all
 ├── static/
 │   ├── index.html           # Landing & Login page  → เข้าถึงผ่าน /
 │   ├── employee.html        # Employee dashboard    → เข้าถึงผ่าน /employee
@@ -132,6 +140,11 @@ wfh/
 เก็บแผนงานรายสัปดาห์ (Document ID: `{user_id}_{week_start}`)
 - Fields: `user_id`, `user_name`, `department`, `week_start`, `days`
 - `days`: dict mapping `YYYY-MM-DD` → list ของ tasks (id, title, goal, output, kpi_name, kpi_target, description, approved, approved_by, approved_at)
+
+### 6. Collection: `fuel_settings`
+เก็บการตั้งค่าการคำนวณค่าน้ำมัน (Document ID: `{user_id}` = personal_id จาก JWT)
+- Fields: `distance_km`, `fuel_efficiency`, `fuel_price` (ราคาล่าสุด), `toll_parking`
+- `price_history`: `[{fuel_price: float, effective_from: "YYYY-MM-DD"}]` — เรียงจากน้อยไปมาก
 
 ---
 
@@ -196,6 +209,10 @@ wfh/
 | DELETE | `/api/announcements/{id}` | ลบประกาศ (Super Admin only) |
 | POST | `/api/upload` | อัปโหลดไฟล์เพื่อใช้แนบกับภาระงานต่างๆ |
 | GET | `/api/plans` | ดูแผนงานของตัวเอง (`?week=YYYY-MM-DD`) |
+| GET/PUT | `/api/fuel/settings` | ดึง/บันทึกการตั้งค่าน้ำมัน (พร้อม price history) |
+| GET | `/api/fuel/savings?month=YYYY-MM` | คำนวณประหยัดน้ำมัน WFH รายเดือน (per-day price) |
+| GET | `/api/fuel/savings/weekly?week=YYYY-MM-DD` | คำนวณประหยัดน้ำมัน WFH รายอาทิตย์ |
+| GET | `/api/fuel/savings/all?month=YYYY-MM` | สรุปค่าน้ำมันประหยัดทุกคน (Admin level 1+) |
 | POST | `/api/plans` | สร้าง/แทนที่แผนงาน (รักษา approval fields ไว้เสมอ) |
 | GET | `/api/plans/tasks` | ดึงงานในแผนสำหรับวันที่ระบุ (auto-inject) |
 | GET | `/api/plans/subordinates` | หัวหน้าดูแผนของลูกน้อง (Admin Level 1+) |
@@ -217,6 +234,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.4.0
+- **เวอร์ชัน:** 3.5.0
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

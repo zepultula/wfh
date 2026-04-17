@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8000`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.4.0
+**Version:** 3.5.0
 
 ---
 
@@ -903,6 +903,198 @@ Admin/Supervisor ดูแผนของลูกน้องทุกคนส
 
 ---
 
+### Fuel Savings
+
+> Prefix: `/api/fuel`  
+> ทุก endpoint ใน group นี้ใช้ `Depends(get_current_user)` ยกเว้น `/savings/all` ที่ตรวจสอบ Token เองผ่าน Header
+
+---
+
+#### 30. GET `/api/fuel/settings`
+
+ดึงการตั้งค่าน้ำมันของผู้ใช้ปัจจุบัน รวม price_history
+
+**Response 200** — `FuelSettingsWithHistory`
+```json
+{
+  "distance_km": 40.0,
+  "fuel_efficiency": 15.0,
+  "fuel_price": 39.50,
+  "toll_parking": 0.0,
+  "price_history": [
+    { "fuel_price": 40.50, "effective_from": "2026-04-01" },
+    { "fuel_price": 39.50, "effective_from": "2026-04-14" }
+  ]
+}
+```
+
+> ถ้าไม่มี doc ใน `fuel_settings` คืน object ที่ทุกค่าเป็น `0` / `[]` (ไม่ throw 404)
+
+---
+
+#### 31. PUT `/api/fuel/settings`
+
+บันทึก/อัปเดตการตั้งค่าน้ำมัน พร้อม append ราคาใหม่ลง price_history
+
+**Request Body** — `FuelSettingsUpdate`
+```json
+{
+  "distance_km": 40.0,
+  "fuel_efficiency": 15.0,
+  "fuel_price": 39.50,
+  "toll_parking": 20.0,
+  "effective_from": "2026-04-14"
+}
+```
+
+> `effective_from` เป็น Optional — ถ้าไม่ระบุใช้วันนี้ (`date.today().isoformat()`)  
+> ถ้ามี entry ที่ `effective_from` ตรงกันอยู่แล้ว → **อัปเดตราคา** (ไม่สร้าง entry ซ้ำ)
+
+**Response 200**
+```json
+{ "status": "success" }
+```
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | user_id หายไปจาก token |
+| 422 | อัตราสิ้นเปลืองน้ำมันต้องมากกว่า 0 |
+
+---
+
+#### 32. GET `/api/fuel/savings`
+
+คำนวณเงินที่ประหยัดได้จาก WFH รายเดือน (per-day price accuracy)
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `month` | `YYYY-MM` | บังคับ | เดือนที่ต้องการคำนวณ |
+
+**ตัวอย่าง**
+```
+GET /api/fuel/savings?month=2026-04
+```
+
+**Response 200** — `FuelSavingsResponse`
+```json
+{
+  "settings": {
+    "distance_km": 40.0,
+    "fuel_efficiency": 15.0,
+    "fuel_price": 39.50,
+    "toll_parking": 20.0
+  },
+  "wfh_days": 12,
+  "daily_fuel_cost": 105.33,
+  "daily_total_cost": 125.33,
+  "monthly_savings": 1503.96,
+  "month": "2026-04"
+}
+```
+
+> `daily_fuel_cost` / `daily_total_cost` ใช้ราคาที่มีผล ณ **วันนี้** (สำหรับแสดงข้อมูล)  
+> `monthly_savings` = สะสมต่อวัน โดยแต่ละวัน WFH ใช้ราคาที่มีผล ณ วันนั้น (แม่นยำที่สุด)
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | รูปแบบเดือนไม่ถูกต้อง |
+| 404 | กรุณาบันทึกการตั้งค่าก่อน |
+
+---
+
+#### 33. GET `/api/fuel/savings/weekly`
+
+คำนวณเงินที่ประหยัดได้จาก WFH รายอาทิตย์
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `week` | `YYYY-MM-DD` | บังคับ | วันใดก็ได้ในอาทิตย์นั้น (ระบบคำนวณ Mon–Sun เอง) |
+
+**ตัวอย่าง**
+```
+GET /api/fuel/savings/weekly?week=2026-04-15
+```
+
+**Response 200** — `FuelSavingsWeeklyResponse`
+```json
+{
+  "settings": {
+    "distance_km": 40.0,
+    "fuel_efficiency": 15.0,
+    "fuel_price": 39.50,
+    "toll_parking": 20.0
+  },
+  "wfh_days": 3,
+  "daily_fuel_cost": 105.33,
+  "daily_total_cost": 125.33,
+  "weekly_savings": 375.99,
+  "week_start": "2026-04-14",
+  "week_end": "2026-04-20"
+}
+```
+
+> `fuel_price` ที่ใช้คือราคาที่มีผล ณ **วันจันทร์ต้นอาทิตย์** (ราคาเดียวตลอดทั้งอาทิตย์)
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | รูปแบบวันที่ไม่ถูกต้อง |
+| 404 | กรุณาบันทึกการตั้งค่าก่อน |
+
+---
+
+#### 34. GET `/api/fuel/savings/all`
+
+สรุปค่าน้ำมันที่ประหยัดได้ของพนักงานทุกคน (Admin level 1+)
+
+**Auth:** ตรวจสอบผ่าน `Authorization: Bearer <token>` Header โดยตรง  
+**สิทธิ์:** `level >= 1` หรือ role มี `admin`
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `month` | `YYYY-MM` | บังคับ | เดือนที่ต้องการสรุป |
+
+**Response 200**
+```json
+{
+  "month": "2026-04",
+  "users": [
+    {
+      "user_id": "EMP001",
+      "name": "สมวิทย์ หัวหน้างาน",
+      "department": "วิทยบริการ",
+      "position": "นักวิชาการคอมพิวเตอร์",
+      "distance_km": 40.0,
+      "fuel_efficiency": 15.0,
+      "fuel_price": 39.50,
+      "toll_parking": 20.0,
+      "wfh_days": 12,
+      "daily_fuel_cost": 105.33,
+      "daily_total_cost": 125.33,
+      "monthly_savings": 1503.96
+    }
+  ]
+}
+```
+
+> แสดงเฉพาะพนักงานที่ `ignore=0` และมี doc ใน `fuel_settings`  
+> `fuel_price` = ราคาล่าสุดที่แต่ละคนบันทึกไว้ (ไม่ใช่ per-day — เพื่อประสิทธิภาพ)  
+> เรียงตาม department → name
+
+**Errors**
+| Code | Detail |
+|------|--------|
+| 400 | รูปแบบเดือนไม่ถูกต้อง |
+| 401 | ไม่ได้รับอนุญาต / Token ไม่ถูกต้อง |
+| 403 | ต้องการสิทธิ์ระดับ Admin |
+
+---
+
 ### Admin — Data Migration (Super Admin only)
 
 > Endpoints เหล่านี้ **Idempotent** — รันซ้ำกี่ครั้งก็ได้ผลเหมือนเดิม  
@@ -1013,6 +1205,49 @@ Admin/Supervisor ดูแผนของลูกน้องทุกคนส
 > - `approved=false, approved_by=""` → **Pending** (รอรีวิว)
 > - `approved=true` → **Approved** (อนุมัติแล้ว — lock ทุกช่อง, ห้ามลบ)
 > - `approved=false, approved_by≠""` → **Rejected** (ไม่อนุมัติ — ซ่อนใน auto-inject)
+
+---
+
+### FuelSettings
+| Field | Type | Description |
+|-------|------|-------------|
+| `distance_km` | float | ระยะทางไป-กลับต่อวัน (กม.) |
+| `fuel_efficiency` | float | อัตราสิ้นเปลือง (กม./ลิตร) |
+| `fuel_price` | float | ราคาน้ำมันต่อลิตร (บาท) |
+| `toll_parking` | float | ค่าทางด่วน/จอดรถต่อวัน (บาท) — default `0.0` |
+
+### FuelSettingsUpdate (Request Body — PUT /api/fuel/settings)
+เหมือน `FuelSettings` + เพิ่ม `effective_from: Optional[str]` (YYYY-MM-DD, default = วันนี้)
+
+### FuelSettingsWithHistory (Response — GET /api/fuel/settings)
+เหมือน `FuelSettings` + `price_history: PriceEntry[]`
+
+### PriceEntry
+| Field | Type | Description |
+|-------|------|-------------|
+| `fuel_price` | float | ราคาน้ำมันต่อลิตร (บาท) |
+| `effective_from` | string | วันที่ราคานี้มีผล รูปแบบ YYYY-MM-DD |
+
+### FuelSavingsResponse
+| Field | Type | Description |
+|-------|------|-------------|
+| `settings` | `FuelSettings` | การตั้งค่าของผู้ใช้ (fuel_price = ราคาวันนี้) |
+| `wfh_days` | int | จำนวนวัน WFH จริงในเดือน |
+| `daily_fuel_cost` | float | ค่าน้ำมัน/วัน ณ ราคาวันนี้ (บาท) |
+| `daily_total_cost` | float | ค่าใช้จ่าย/วัน รวมทางด่วน (บาท) |
+| `monthly_savings` | float | เงินที่ประหยัดได้รวมทั้งเดือน — คำนวณ per-day price (บาท) |
+| `month` | string | เดือนที่คำนวณ YYYY-MM |
+
+### FuelSavingsWeeklyResponse
+| Field | Type | Description |
+|-------|------|-------------|
+| `settings` | `FuelSettings` | การตั้งค่าของผู้ใช้ (fuel_price = ราคา ณ วันจันทร์) |
+| `wfh_days` | int | จำนวนวัน WFH จริงในอาทิตย์ |
+| `daily_fuel_cost` | float | ค่าน้ำมัน/วัน (บาท) |
+| `daily_total_cost` | float | ค่าใช้จ่าย/วัน รวมทางด่วน (บาท) |
+| `weekly_savings` | float | เงินที่ประหยัดได้รวมทั้งอาทิตย์ (บาท) |
+| `week_start` | string | วันจันทร์ต้นอาทิตย์ YYYY-MM-DD |
+| `week_end` | string | วันอาทิตย์ปลายอาทิตย์ YYYY-MM-DD |
 
 ---
 

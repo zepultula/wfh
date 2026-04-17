@@ -7,7 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from routers import reports, admin, announcements, plans, uploads
+from routers import reports, admin, announcements, plans, uploads, fuel
 from models import LoginRequest, UserInfo, PasswordUpdateRequest
 from auth import create_access_token, get_current_user
 import os
@@ -231,6 +231,7 @@ app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
 app.include_router(announcements.router, prefix="/api/announcements", tags=["Announcements"])
 app.include_router(plans.router, prefix="/api/plans", tags=["Plans"])
 app.include_router(uploads.router, prefix="/api/upload", tags=["Uploads"])
+app.include_router(fuel.router, prefix="/api/fuel", tags=["Fuel"])
 
 #? Page routes ต้องกำหนดก่อน app.mount() เสมอ มิฉะนั้น FastAPI จะไม่พบ route
 #? ให้หน้าแรก (Login) Serve ไฟล์ HTML โดยตรง ซ่อน URL จริงของไฟล์

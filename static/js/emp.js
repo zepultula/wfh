@@ -1467,3 +1467,259 @@ window.saveAttachModal = function() {
     if (currentReportId && currentReportExists) autoSaveTasks();
   }
 };
+
+
+/* ══════════════════════════════════════════════════════
+   ระบบคำนวณประหยัดค่าน้ำมัน (Fuel Savings)
+   ══════════════════════════════════════════════════════ */
+
+//? state ของ week ปัจจุบันในหน้าพลังงาน (Monday YYYY-MM-DD)
+let _fuelWeekMonday = null;
+
+//? คำนวณวันจันทร์ของสัปดาห์ที่มี dateStr อยู่
+function _fuelGetMonday(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  return d.toISOString().split('T')[0];
+}
+
+//? แปลง monday string เป็น label "DD MMM – DD MMM พ.ศ."
+function _fuelWeekLabel(mondayStr) {
+  const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const mon = new Date(mondayStr + 'T00:00:00');
+  const sun = new Date(mondayStr + 'T00:00:00');
+  sun.setDate(sun.getDate() + 6);
+  const fmt = d => `${d.getDate()} ${TH_MONTHS[d.getMonth()]}`;
+  return `${fmt(mon)} – ${fmt(sun)} ${sun.getFullYear() + 543}`;
+}
+
+//? สลับ tab รายอาทิตย์ / รายเดือน
+function setFuelTab(tab) {
+  const isWeek = tab === 'week';
+  document.getElementById('fuel-calc-week').style.display = isWeek ? '' : 'none';
+  document.getElementById('fuel-calc-month').style.display = isWeek ? 'none' : '';
+  document.getElementById('fuel-tab-week').className = isWeek ? 'nav-btn nav-btn-blue active' : 'nav-btn nav-btn-back';
+  document.getElementById('fuel-tab-month').className = isWeek ? 'nav-btn nav-btn-back' : 'nav-btn nav-btn-blue active';
+  //? ซ่อนผลลัพธ์เดิมเมื่อสลับ tab
+  document.getElementById('fuel-results').style.display = 'none';
+}
+
+//? เลื่อนอาทิตย์ (delta = -1 ก่อนหน้า, +1 ถัดไป)
+function navigateFuelWeek(delta) {
+  const d = new Date(_fuelWeekMonday + 'T00:00:00');
+  d.setDate(d.getDate() + delta * 7);
+  _fuelWeekMonday = d.toISOString().split('T')[0];
+  document.getElementById('fuel-week-label').textContent = _fuelWeekLabel(_fuelWeekMonday);
+  document.getElementById('fuel-results').style.display = 'none';
+}
+
+//? แสดงหน้าจอคำนวณค่าน้ำมัน ซ่อน e-main และ e-plan-view
+function showFuelView() {
+  document.getElementById('e-main').style.display = 'none';
+  document.getElementById('e-plan-view').style.display = 'none';
+  document.getElementById('e-fuel').style.display = '';
+  // ตั้งค่า week เริ่มต้นเป็นอาทิตย์ปัจจุบัน
+  const today = new Date().toISOString().split('T')[0];
+  _fuelWeekMonday = _fuelGetMonday(today);
+  document.getElementById('fuel-week-label').textContent = _fuelWeekLabel(_fuelWeekMonday);
+  // ตั้งค่า default month เป็นเดือนปัจจุบัน
+  const picker = document.getElementById('fuel-month');
+  if (picker && !picker.value) {
+    const n = new Date();
+    picker.value = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+  }
+  loadFuelSettings();
+}
+
+//? กลับไปหน้ารายงานประจำวัน
+function hideFuelView() {
+  document.getElementById('e-fuel').style.display = 'none';
+  document.getElementById('e-main').style.display = '';
+}
+
+//? โหลดการตั้งค่าน้ำมันจาก API แล้วเติมลงในฟอร์ม + แสดงประวัติราคา
+async function loadFuelSettings() {
+  try {
+    const res = await fetch('/api/fuel/settings');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('fuel-distance').value = data.distance_km || '';
+    document.getElementById('fuel-efficiency').value = data.fuel_efficiency || '';
+    document.getElementById('fuel-price').value = data.fuel_price || '';
+    document.getElementById('fuel-toll').value = data.toll_parking || '';
+    //? ตั้ง default วันที่มีผล = วันนี้ (ถ้ายังไม่ได้เลือก)
+    const datePicker = document.getElementById('fuel-price-date');
+    if (datePicker && !datePicker.value) {
+      datePicker.value = new Date().toISOString().split('T')[0];
+    }
+    //? แสดงประวัติราคาน้ำมัน
+    renderPriceHistory(data.price_history || []);
+  } catch (e) {
+    console.error('loadFuelSettings error:', e);
+  }
+}
+
+//? แสดงประวัติราคาน้ำมันในรูปแบบ timeline
+function renderPriceHistory(history) {
+  const card = document.getElementById('fuel-history-card');
+  const list = document.getElementById('fuel-history-list');
+  if (!history || history.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  //? เรียงจากใหม่ → เก่า เพื่อแสดง
+  const sorted = [...history].sort((a, b) => b.effective_from.localeCompare(a.effective_from));
+  const TH_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const fmtDate = str => {
+    const d = new Date(str + 'T00:00:00');
+    return `${d.getDate()} ${TH_MONTHS[d.getMonth()]} ${d.getFullYear() + 543}`;
+  };
+  list.innerHTML = sorted.map((e, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 0;${i < sorted.length - 1 ? 'border-bottom:1px solid var(--color-border-primary)' : ''}">
+      <span style="font-size:11px;color:var(--color-text-secondary);min-width:110px">${fmtDate(e.effective_from)}</span>
+      <span style="font-size:13px;font-weight:600;color:var(--color-text-primary)">${parseFloat(e.fuel_price).toFixed(2)} บาท/ลิตร</span>
+      ${i === 0 ? '<span style="font-size:10px;background:#1D9E75;color:#fff;border-radius:6px;padding:1px 6px;font-weight:600">ล่าสุด</span>' : ''}
+    </div>`).join('');
+  card.style.display = '';
+}
+
+//? บันทึกการตั้งค่าน้ำมัน พร้อม validate ก่อนส่ง
+async function saveFuelSettings() {
+  const distance = parseFloat(document.getElementById('fuel-distance').value);
+  const efficiency = parseFloat(document.getElementById('fuel-efficiency').value);
+  const price = parseFloat(document.getElementById('fuel-price').value);
+  const toll = parseFloat(document.getElementById('fuel-toll').value) || 0;
+
+  if (!distance || distance <= 0) {
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกระยะทาง', confirmButtonColor: '#1059A3' });
+    return;
+  }
+  if (!efficiency || efficiency <= 0) {
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกอัตราสิ้นเปลืองน้ำมัน', confirmButtonColor: '#1059A3' });
+    return;
+  }
+  if (!price || price <= 0) {
+    Swal.fire({ icon: 'warning', title: 'กรุณากรอกราคาน้ำมัน', confirmButtonColor: '#1059A3' });
+    return;
+  }
+
+  const btn = document.getElementById('btn-fuel-save');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
+
+  try {
+    const effectiveFrom = document.getElementById('fuel-price-date').value
+      || new Date().toISOString().split('T')[0];
+    const res = await fetch('/api/fuel/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ distance_km: distance, fuel_efficiency: efficiency, fuel_price: price, toll_parking: toll, effective_from: effectiveFrom })
+    });
+    if (res.ok) {
+      await loadFuelSettings();  //? รีโหลดเพื่ออัปเดตประวัติราคาทันที
+      Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: `ราคาน้ำมัน ${price.toFixed(2)} บาท/ลิตร มีผลตั้งแต่ ${effectiveFrom}`, confirmButtonColor: '#1D9E75' });
+    } else {
+      const err = await res.json().catch(() => ({}));
+      Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.detail || '', confirmButtonColor: '#1059A3' });
+    }
+  } catch (e) {
+    Swal.fire({ icon: 'error', title: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้', confirmButtonColor: '#1059A3' });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'บันทึกการตั้งค่า';
+  }
+}
+
+//? คำนวณและแสดงผลประหยัดค่าน้ำมันประจำเดือน
+async function loadFuelSavings() {
+  const month = document.getElementById('fuel-month').value;
+  if (!month) {
+    Swal.fire({ icon: 'warning', title: 'กรุณาเลือกเดือน', confirmButtonColor: '#1059A3' });
+    return;
+  }
+
+  //? แสดง loading state บนปุ่มและ results card ระหว่างรอ API
+  const btn = document.querySelector('#e-fuel .btn-save[onclick="loadFuelSavings()"]');
+  const resultsEl = document.getElementById('fuel-results');
+  const bodyEl = document.getElementById('fuel-results-body');
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังคำนวณ…'; }
+  //? แสดงการ์ด และ replace body ด้วย spinner (heading ยังคงอยู่)
+  resultsEl.style.display = '';
+  bodyEl.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:18px 0;color:var(--color-text-secondary);font-size:14px">
+      <span class="ld-spin" style="width:18px;height:18px;border-width:2.5px"></span>
+      กำลังนับวัน WFH และคำนวณ…
+    </div>`;
+
+  try {
+    const res = await fetch(`/api/fuel/savings?month=${encodeURIComponent(month)}`);
+    if (res.status === 404) {
+      resultsEl.style.display = 'none';
+      Swal.fire({ icon: 'info', title: 'กรุณาบันทึกการตั้งค่าก่อน', text: 'กรอกข้อมูลการเดินทางและกดบันทึกการตั้งค่า', confirmButtonColor: '#1059A3' });
+      return;
+    }
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+
+    //? เติมผลลัพธ์กลับเข้า body wrapper (heading ยังคงอยู่ไม่ถูกแทนที่)
+    bodyEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat"><div class="sn" id="fuel-r-daily-fuel">${data.daily_fuel_cost.toFixed(2)}</div><div class="sl">ค่าน้ำมันต่อวัน (บาท)</div></div>
+        <div class="stat"><div class="sn sg" id="fuel-r-daily-total">${data.daily_total_cost.toFixed(2)}</div><div class="sl">ค่าใช้จ่ายรวมต่อวัน (บาท)</div></div>
+        <div class="stat"><div class="sn sa" id="fuel-r-wfh-days">${data.wfh_days}</div><div class="sl">วัน WFH ในเดือนนี้</div></div>
+        <div class="stat"><div class="sn sr" id="fuel-r-monthly">${data.monthly_savings.toFixed(2)}</div><div class="sl">ประหยัดรวม/เดือน (บาท)</div></div>
+      </div>
+      <div id="fuel-r-note" style="font-size:11px;color:var(--color-text-secondary);margin-top:.5rem;text-align:right">
+        คำนวณจากรายงาน WFH จำนวน ${data.wfh_days} วัน ในเดือน ${month}
+      </div>`;
+  } catch (e) {
+    resultsEl.style.display = 'none';
+    Swal.fire({ icon: 'error', title: 'ไม่สามารถคำนวณได้', confirmButtonColor: '#1059A3' });
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'คำนวณ'; }
+  }
+}
+
+//? คำนวณและแสดงผลประหยัดค่าน้ำมันรายอาทิตย์
+async function loadFuelSavingsWeekly() {
+  if (!_fuelWeekMonday) return;
+
+  const btn = document.querySelector('#fuel-calc-week .btn-save');
+  const resultsEl = document.getElementById('fuel-results');
+  const bodyEl = document.getElementById('fuel-results-body');
+  if (btn) { btn.disabled = true; btn.textContent = 'กำลังคำนวณ…'; }
+  resultsEl.style.display = '';
+  bodyEl.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:18px 0;color:var(--color-text-secondary);font-size:14px">
+      <span class="ld-spin" style="width:18px;height:18px;border-width:2.5px"></span>
+      กำลังนับวัน WFH และคำนวณ…
+    </div>`;
+
+  try {
+    const res = await fetch(`/api/fuel/savings/weekly?week=${encodeURIComponent(_fuelWeekMonday)}`);
+    if (res.status === 404) {
+      resultsEl.style.display = 'none';
+      Swal.fire({ icon: 'info', title: 'กรุณาบันทึกการตั้งค่าก่อน', text: 'กรอกข้อมูลการเดินทางและกดบันทึกการตั้งค่า', confirmButtonColor: '#1059A3' });
+      return;
+    }
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    bodyEl.innerHTML = `
+      <div class="stat-grid">
+        <div class="stat"><div class="sn" id="fuel-r-daily-fuel">${data.daily_fuel_cost.toFixed(2)}</div><div class="sl">ค่าน้ำมันต่อวัน (บาท)</div></div>
+        <div class="stat"><div class="sn sg" id="fuel-r-daily-total">${data.daily_total_cost.toFixed(2)}</div><div class="sl">ค่าใช้จ่ายรวมต่อวัน (บาท)</div></div>
+        <div class="stat"><div class="sn sa" id="fuel-r-wfh-days">${data.wfh_days}</div><div class="sl">วัน WFH ในอาทิตย์นี้</div></div>
+        <div class="stat"><div class="sn sr" id="fuel-r-weekly">${data.weekly_savings.toFixed(2)}</div><div class="sl">ประหยัดรวม/อาทิตย์ (บาท)</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--color-text-secondary);margin-top:.5rem;text-align:right">
+        คำนวณจากรายงาน WFH จำนวน ${data.wfh_days} วัน ใน ${_fuelWeekLabel(data.week_start)}
+      </div>`;
+  } catch (e) {
+    resultsEl.style.display = 'none';
+    Swal.fire({ icon: 'error', title: 'ไม่สามารถคำนวณได้', confirmButtonColor: '#1059A3' });
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'คำนวณ'; }
+  }
+}

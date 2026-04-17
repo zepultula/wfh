@@ -57,6 +57,10 @@ async function initUser() {
     const btnPlans = document.getElementById('btn-plans-mgmt');
     if (btnPlans) btnPlans.style.display = '';
 
+    //? Admin ทุก level (1+) เห็นเมนูพลังงาน/ค่าน้ำมัน
+    const btnFuel = document.getElementById('btn-fuel-mgmt');
+    if (btnFuel) btnFuel.style.display = '';
+
     //? ตรวจสอบและแสดง Modal ประกาศ (ครั้งเดียวต่อ Login session)
     checkAndShowAnnouncement();
   } catch(e) {
@@ -882,7 +886,7 @@ const levelLabelMap = { 0:'พนักงาน',1:'หัวหน้างา
 const avatarCycleColors = ['av-teal','av-purple','av-coral','av-amber','av-blue'];
 
 function setNavActive(activeId) {
-  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt','btn-ann-mgmt','btn-plans-mgmt'].forEach(id => {
+  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt','btn-ann-mgmt','btn-plans-mgmt','btn-fuel-mgmt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', id === activeId);
   });
@@ -2192,4 +2196,97 @@ async function approveTask(planId, date, taskId, approved, btn) {
   } finally {
     aptBtn.disabled = rejBtn.disabled = false;
   }
+}
+
+
+/* ══════════════════════════════════════════════════════
+   ระบบพลังงาน/ค่าน้ำมัน (Admin Fuel View)
+   ══════════════════════════════════════════════════════ */
+
+//? helper: คืนเดือนปัจจุบันในรูปแบบ YYYY-MM
+function _getDefaultMonth() {
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`;
+}
+
+//? แสดงหน้าจอพลังงาน ซ่อนทุก section อื่น
+function showFuelScreen() {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann','sup-plans'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const el = document.getElementById('sup-fuel');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-fuel-mgmt');
+  const picker = document.getElementById('fuel-admin-month');
+  if (picker && !picker.value) picker.value = _getDefaultMonth();
+  loadFuelAdminData(picker ? picker.value : _getDefaultMonth());
+}
+
+//? กลับ Dashboard จากหน้าพลังงาน
+function hideFuelScreen() {
+  document.getElementById('sup-fuel').style.display = 'none';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
+}
+
+//? โหลดข้อมูลประหยัดค่าน้ำมันทุกคนจาก API
+async function loadFuelAdminData(month) {
+  if (!month) return;
+  const rows = document.getElementById('fuel-admin-rows');
+  if (rows) rows.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
+  try {
+    const res = await fetch(`/api/fuel/savings/all?month=${encodeURIComponent(month)}`);
+    if (!res.ok) throw new Error('Forbidden');
+    const data = await res.json();
+    renderFuelAdminRows(data);
+  } catch (e) {
+    if (rows) rows.innerHTML = '<div style="text-align:center;color:#e24b4a;padding:1.5rem">ไม่สามารถโหลดข้อมูลได้</div>';
+  }
+}
+
+//? แสดงตารางข้อมูลประหยัดค่าน้ำมันรายบุคคล
+function renderFuelAdminRows(data) {
+  const rows = document.getElementById('fuel-admin-rows');
+  if (!rows) return;
+  if (!data.users || data.users.length === 0) {
+    rows.innerHTML = '<div style="text-align:center;color:var(--color-text-secondary);padding:1.5rem">ยังไม่มีผู้ใช้บันทึกข้อมูลการเดินทาง</div>';
+    return;
+  }
+  const totalSavings = data.users.reduce((s, u) => s + u.monthly_savings, 0);
+  let html = `
+    <div class="stat-grid" style="margin-bottom:.75rem">
+      <div class="stat"><div class="sn">${data.users.length}</div><div class="sl">บันทึกข้อมูลแล้ว (คน)</div></div>
+      <div class="stat"><div class="sn sg">${totalSavings.toFixed(0)}</div><div class="sl">รวมประหยัด/เดือน (บาท)</div></div>
+    </div>
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead>
+        <tr style="background:var(--color-background-secondary);font-size:11px;color:var(--color-text-secondary)">
+          <th style="padding:7px 10px;text-align:left">ชื่อ-สกุล</th>
+          <th style="padding:7px 10px;text-align:center">หน่วยงาน</th>
+          <th style="padding:7px 10px;text-align:right">วัน WFH</th>
+          <th style="padding:7px 10px;text-align:right">ค่าน้ำมัน/วัน</th>
+          <th style="padding:7px 10px;text-align:right">รวม/วัน</th>
+          <th style="padding:7px 10px;text-align:right">ประหยัด/เดือน</th>
+        </tr>
+      </thead>
+      <tbody>`;
+  data.users.forEach((u, i) => {
+    const bg = i % 2 === 0 ? '' : 'background:#f9fafb';
+    html += `
+      <tr style="${bg}">
+        <td style="padding:7px 10px">${u.name}</td>
+        <td style="padding:7px 10px;text-align:center;font-size:11px;color:var(--color-text-secondary)">${u.department}</td>
+        <td style="padding:7px 10px;text-align:right">${u.wfh_days}</td>
+        <td style="padding:7px 10px;text-align:right">${u.daily_fuel_cost.toFixed(2)}</td>
+        <td style="padding:7px 10px;text-align:right">${u.daily_total_cost.toFixed(2)}</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:600;color:#1D9E75">${u.monthly_savings.toFixed(2)}</td>
+      </tr>`;
+  });
+  html += '</tbody></table></div>';
+  rows.innerHTML = html;
 }

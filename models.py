@@ -129,3 +129,50 @@ class TaskApprovalUpdate(BaseModel):
 
 #todo เพิ่มระบบ Data Validation (เช่น progress ต้องอยู่ระหว่าง 0-100 หรือตรวจสอบอีเมลที่ถูกต้อง) ในอนาคต
 #! ในปัจจุบันระบบยังไม่ได้จำกัดความยาวของ String ในฟิลด์ต่างๆ อาจทำให้เกิดปัญหาถ้าส่งข้อมูลยาวเกินไปลงใน Firestore
+
+#? บันทึกราคาน้ำมัน ณ วันที่หนึ่ง (สำหรับ price history)
+class PriceEntry(BaseModel):
+    fuel_price: float         #? ราคาน้ำมันต่อลิตร (บาท)
+    effective_from: str       #? วันที่ราคานี้มีผล รูปแบบ YYYY-MM-DD
+
+#? โครงสร้างการตั้งค่าการคำนวณค่าใช้จ่ายน้ำมัน (เก็บใน Firestore collection: fuel_settings, doc ID = user_id)
+class FuelSettings(BaseModel):
+    distance_km: float        #? ระยะทางไปกลับต่อวัน (กม.)
+    fuel_efficiency: float    #? อัตราสิ้นเปลืองน้ำมัน (กม./ลิตร)
+    fuel_price: float         #? ราคาน้ำมันต่อลิตร (บาท) — ราคาล่าสุด
+    toll_parking: float = 0.0 #? ค่าทางด่วน/ที่จอดรถต่อวัน (บาท)
+
+#? Body สำหรับ PUT /api/fuel/settings — รับราคาพร้อมวันที่มีผล
+class FuelSettingsUpdate(BaseModel):
+    distance_km: float
+    fuel_efficiency: float
+    fuel_price: float
+    toll_parking: float = 0.0
+    effective_from: Optional[str] = None  #? default = วันนี้ ถ้าไม่ระบุ
+
+#? Response สำหรับ GET /api/fuel/settings — รวม price_history
+class FuelSettingsWithHistory(BaseModel):
+    distance_km: float
+    fuel_efficiency: float
+    fuel_price: float
+    toll_parking: float = 0.0
+    price_history: List[PriceEntry] = []
+
+#? โครงสร้างผลลัพธ์การคำนวณประหยัดค่าน้ำมัน WFH รายเดือน
+class FuelSavingsResponse(BaseModel):
+    settings: FuelSettings
+    wfh_days: int             #? จำนวนวันที่ WFH จริงในเดือน (นับจาก reports collection)
+    daily_fuel_cost: float    #? ค่าน้ำมันต่อวัน (บาท)
+    daily_total_cost: float   #? ค่าใช้จ่ายรวมต่อวัน รวมทางด่วน/จอดรถ (บาท)
+    monthly_savings: float    #? เงินที่ประหยัดได้รวมทั้งเดือน (บาท)
+    month: str                #? เดือนที่คำนวณ รูปแบบ YYYY-MM
+
+#? โครงสร้างผลลัพธ์การคำนวณประหยัดค่าน้ำมัน WFH รายอาทิตย์
+class FuelSavingsWeeklyResponse(BaseModel):
+    settings: FuelSettings
+    wfh_days: int             #? จำนวนวันที่ WFH จริงในอาทิตย์ (นับจาก reports collection)
+    daily_fuel_cost: float    #? ค่าน้ำมันต่อวัน (บาท)
+    daily_total_cost: float   #? ค่าใช้จ่ายรวมต่อวัน รวมทางด่วน/จอดรถ (บาท)
+    weekly_savings: float     #? เงินที่ประหยัดได้รวมทั้งอาทิตย์ (บาท)
+    week_start: str           #? วันจันทร์ของอาทิตย์ที่คำนวณ รูปแบบ YYYY-MM-DD
+    week_end: str             #? วันอาทิตย์ของอาทิตย์ที่คำนวณ รูปแบบ YYYY-MM-DD

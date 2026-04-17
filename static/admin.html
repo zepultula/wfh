@@ -27,6 +27,7 @@
       <button class="nav-btn nav-btn-teal" id="btn-stats-mgmt" onclick="showStatsScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>สถิติรายเดือน</button>
       <button class="nav-btn nav-btn-amber" id="btn-ann-mgmt" onclick="showAnnScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>จัดการประกาศ</button>
       <button class="nav-btn nav-btn-green" id="btn-plans-mgmt" onclick="showPlansScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>รีวิวแผนงาน</button>
+      <button class="nav-btn nav-btn-danger" id="btn-fuel-mgmt" onclick="showFuelScreen()" style="display:none"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V8a2 2 0 012-2h6a2 2 0 012 2v14"/><rect x="3" y="14" width="10" height="8"/><path d="M17 22V11.5l-4-3"/><path d="M17 5h2a2 2 0 012 2v3"/></svg>พลังงาน</button>
 
       <div class="user-menu-wrap" id="user-menu-wrap">
         <div class="user-menu-btn" onclick="toggleUserMenu(event)">
@@ -210,6 +211,35 @@
       </div>
       <div id="plans-review-container">
         <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── หน้าจอพลังงาน/ค่าน้ำมัน (Admin) ── -->
+  <div id="sup-fuel" style="display:none">
+    <div class="pg">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem;flex-wrap:wrap;gap:8px">
+        <button class="back-btn" onclick="hideFuelScreen()"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/></svg>กลับ Dashboard</button>
+        <input type="month" id="fuel-admin-month" style="font-size:12px;padding:5px 8px;border:0.5px solid var(--color-border-primary);border-radius:var(--border-radius-md);outline:none;background:var(--color-background-secondary);color:var(--color-text-primary);" onchange="loadFuelAdminData(this.value)">
+      </div>
+      <!-- หมายเหตุการทำงานของระบบ (Admin) -->
+      <div style="background:var(--color-background-secondary);border:1px solid var(--color-border-secondary);border-left:3px solid #1D9E75;border-radius:var(--border-radius-md);padding:12px 14px;margin-bottom:1rem;font-size:12.5px;color:var(--color-text-secondary);line-height:1.7">
+        <div style="font-weight:600;color:var(--color-text-primary);margin-bottom:8px">📋 วิธีอ่านข้อมูล</div>
+        <div style="display:grid;gap:6px">
+          <div><span style="display:inline-block;background:#1D9E75;color:#fff;border-radius:9px;padding:1px 8px;font-size:11px;font-weight:600;margin-right:6px">สูตรคำนวณ</span>ค่าน้ำมัน/วัน = (ระยะทาง ÷ อัตราสิ้นเปลือง) × ราคาน้ำมัน &nbsp;|&nbsp; ประหยัดรวม = ค่าใช้จ่าย/วัน × <strong>จำนวนวัน WFH</strong></div>
+          <div style="padding-left:4px">
+            &nbsp;&nbsp;• <strong>วัน WFH</strong> — นับอัตโนมัติจากรายงานประจำวันที่พนักงานส่ง ไม่ต้องป้อนข้อมูลเพิ่ม<br>
+            &nbsp;&nbsp;• <strong>ราคาน้ำมัน</strong> — ใช้ราคาล่าสุดที่แต่ละคนบันทึกไว้ในการตั้งค่าของตน<br>
+            &nbsp;&nbsp;• แสดงเฉพาะพนักงานที่<strong>ตั้งค่าข้อมูลการเดินทาง</strong>แล้วเท่านั้น
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:.875rem 1.25rem">
+        <div class="sec-lbl" style="margin-bottom:.75rem">ค่าน้ำมันที่ประหยัดได้รายบุคคล</div>
+        <div id="fuel-admin-rows">
+          <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>
+        </div>
       </div>
     </div>
   </div>
@@ -486,7 +516,7 @@
 
 <script src="/static/js/header.js?v=1.3.0"></script>
 <script src="/static/js/announcements.js?v=1.0.0"></script>
-<script src="/static/js/sup.js?v=1.2.1"></script>
+<script src="/static/js/sup.js?v=1.3.0"></script>
 <script src="/static/js/footer.js?v=1.3.0"></script>
 </body>
 </html>
