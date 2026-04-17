@@ -180,9 +180,9 @@ def get_plan_tasks_for_date(
         return []
     days = doc.to_dict().get("days", {})
     tasks = days.get(date, [])
-    #? กรองงาน: แสดงเฉพาะงานที่ "อนุมัติแล้ว" หรือ "ยังไม่รีวิว" (Pending) เท่านั้น ตามบันทึกใน CONTEXT.md
-    #? ซ่อนเฉพาะงานที่หัวหน้าระบุว่า "ไม่อนุมัติ" (approved=False และ approved_by ไม่ใช่ค่าว่าง)
-    return [t for t in tasks if t.get("approved", False) or t.get("approved_by") == ""]
+    #? กรองงาน: แสดงเฉพาะงานที่ "อนุมัติแล้ว" (approved=True) เท่านั้น
+    #! งาน Pending (ยังไม่รีวิว) และงานที่ถูกปฏิเสธ จะไม่ถูก inject เข้ารายงาน
+    return [t for t in tasks if t.get("approved", False) is True]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -217,6 +217,37 @@ def get_subordinates_plans(
         if allowed_ids is not None and uid not in allowed_ids:
             continue
         result.append({"id": doc.id, **d})
+
+    #? รวบรวม report_id ทั้งหมดที่ต้องตรวจสอบ แล้วดึงพร้อมกันด้วย get_all() (batch read)
+    #? แทนการวน loop แบบ sequential เพื่อลด network round-trip จาก N×M ครั้ง → 1 ครั้ง
+    all_report_refs: list = []
+    ref_to_key: dict[str, tuple[str, str]] = {}  # doc_path → (uid, date_str)
+
+    for plan_dict in result:
+        uid = plan_dict.get("user_id", "")
+        for date_str, tasks in plan_dict.get("days", {}).items():
+            if tasks:
+                report_id = f"{uid}_{date_str}"
+                ref = db.collection("reports").document(report_id)
+                all_report_refs.append(ref)
+                ref_to_key[ref.path] = (uid, date_str)
+
+    #? batch get — Firestore ส่ง request เดียวสำหรับทุก doc พร้อมกัน
+    exists_set: set[str] = set()
+    if all_report_refs:
+        for snap in db.get_all(all_report_refs):
+            if snap.exists:
+                exists_set.add(snap.reference.path)
+
+    #? ใส่ in_report flag ให้แต่ละ task โดยอ้างอิงจาก exists_set
+    for plan_dict in result:
+        uid = plan_dict.get("user_id", "")
+        for date_str, tasks in plan_dict.get("days", {}).items():
+            report_path = db.collection("reports").document(f"{uid}_{date_str}").path
+            has_report = report_path in exists_set
+            for task in tasks:
+                task["in_report"] = has_report
+
     return result
 
 
@@ -247,6 +278,15 @@ def approve_task(
     plan_data = doc.to_dict()
     days = plan_data.get("days", {})
     tasks_for_date = days.get(data.date, [])
+
+    #! ป้องกันการยกเลิกการอนุมัติ หากงานนี้มีรายงานประจำวันแล้ว (อยู่ระหว่างดำเนินการ)
+    if not data.approved:
+        report_id = f"{plan_data.get('user_id', '')}_{data.date}"
+        if db.collection("reports").document(report_id).get().exists:
+            raise HTTPException(
+                status_code=409,
+                detail="ไม่สามารถยกเลิกการอนุมัติได้ เนื่องจากงานนี้อยู่ระหว่างดำเนินการในรายงานแล้ว"
+            )
 
     updated = False
     for task in tasks_for_date:

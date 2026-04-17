@@ -2098,9 +2098,19 @@ function renderPlansReview(plans) {
       let tasksHtml = tasks.map((t, i) => {
         const isApproved = t.approved === true;
         const isRejected = !t.approved && !!t.approved_by;
+        //? inReport: งานที่อนุมัติแล้วและถูก inject ลงใน report collection — ล็อกไม่ให้ยกเลิกอนุมัติ
+        const inReport = isApproved && t.in_report === true;
         const byText = t.approved_by
           ? `<span style="font-size:11px;color:${isApproved ? '#388E3C' : '#C62828'};align-self:center">โดย ${escHtmlSup(t.approved_by)}</span>`
           : '';
+        //? แสดงปุ่มตามสถานะ: ถ้าอยู่ระหว่างดำเนินการแล้ว แทนปุ่มยกเลิกด้วย tag
+        const actionBtns = inReport
+          ? `<span class="plan-inprogress-tag">⋯ อยู่ระหว่างดำเนินการ</span>${byText}`
+          : `<button class="plan-approval-btn${isApproved ? ' apt-active' : ''}"
+                    onclick="approveTask('${plan.id}','${dateStr}',${t.id},true,this)">✓ อนุมัติ</button>
+             <button class="plan-approval-btn${isRejected ? ' rej-active' : ''}"
+                    onclick="approveTask('${plan.id}','${dateStr}',${t.id},false,this)">✗ ไม่อนุมัติ</button>
+             ${byText}`;
         return `
         <div class="plan-task-row">
           <span class="plan-task-num">${i+1}</span>
@@ -2116,11 +2126,7 @@ function renderPlansReview(plans) {
               ${t.kpi_target ? `<span><span style="color:var(--color-text-secondary)">ค่าเป้าหมาย:</span> ${escHtmlSup(t.kpi_target)}</span>` : ''}
             </div>` : ''}
             <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">
-              <button class="plan-approval-btn${isApproved ? ' apt-active' : ''}"
-                      onclick="approveTask('${plan.id}','${dateStr}',${t.id},true,this)">✓ อนุมัติ</button>
-              <button class="plan-approval-btn${isRejected ? ' rej-active' : ''}"
-                      onclick="approveTask('${plan.id}','${dateStr}',${t.id},false,this)">✗ ไม่อนุมัติ</button>
-              ${byText}
+              ${actionBtns}
             </div>
           </div>
         </div>`;
@@ -2184,7 +2190,13 @@ async function approveTask(planId, date, taskId, approved, btn) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ date, task_id: taskId, approved })
     });
-    if (!res.ok) throw new Error();
+    if (!res.ok) {
+      //! 409: งานอยู่ระหว่างดำเนินการแล้ว — ยกเลิกอนุมัติไม่ได้
+      const errMsg = res.status === 409
+        ? 'ไม่สามารถยกเลิกการอนุมัติได้ เนื่องจากงานนี้อยู่ระหว่างดำเนินการในรายงานแล้ว'
+        : 'ไม่สามารถอัปเดตสถานะการอนุมัติได้';
+      throw Object.assign(new Error(errMsg), { status: res.status });
+    }
   } catch(e) {
     //! fail — คืนค่าเดิมทั้งหมด
     aptBtn.className = prevAptClass;
@@ -2192,7 +2204,9 @@ async function approveTask(planId, date, taskId, approved, btn) {
     const newBy = container.querySelector('span[style*="align-self"]');
     if (newBy && !prevByHtml) newBy.remove();
     else if (newBy && prevByHtml) newBy.outerHTML = prevByHtml;
-    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: 'ไม่สามารถอัปเดตสถานะการอนุมัติได้', confirmButtonColor: '#1059A3' });
+    const icon = e.status === 409 ? 'warning' : 'error';
+    const title = e.status === 409 ? 'ไม่สามารถดำเนินการได้' : 'เกิดข้อผิดพลาด';
+    Swal.fire({ icon, title, text: e.message || 'ไม่สามารถอัปเดตสถานะการอนุมัติได้', confirmButtonColor: '#1059A3' });
   } finally {
     aptBtn.disabled = rejBtn.disabled = false;
   }

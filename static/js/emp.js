@@ -1032,10 +1032,13 @@ function renderPlanDays(planData, weekStart) {
     tasks.forEach((t, i) => {
       const isApproved = t.approved === true;
       const isRejected = !t.approved && t.approved_by;
+      const isPending = !t.approved && !t.approved_by;
       const approvalBadge = isApproved
-        ? `<span class="plan-task-approved yes" style="font-size:11px;cursor:default">✓ อนุมัติแล้ว</span>`
+        ? `<span class="plan-task-approved yes">✓ อนุมัติแล้ว</span>`
         : isRejected
-        ? `<span class="plan-task-approved no" style="font-size:11px;cursor:default;background:#FFEBEE;color:#C62828">✗ ไม่อนุมัติ</span>`
+        ? `<span class="plan-task-approved no">✗ ไม่อนุมัติ</span>`
+        : isPending
+        ? `<span class="plan-task-approved pending">⋯ รอการอนุมัติ</span>`
         : '';
       const _lk = isApproved ? 'readonly' : '';
       const _ls = isApproved ? ';background:#F0F8FF;cursor:default' : '';
@@ -1157,7 +1160,7 @@ async function savePlan() {
     if (validationError) return;
     const dateStr = card.dataset.date;
     const tasks = [];
-    let nextNewId = 10000; // ใช้ ID สูงสำหรับงานใหม่ที่ยังไม่มี ID
+    let nextNewId = Date.now(); // ใช้ timestamp เพื่อให้ ID ไม่ซ้ำกันข้าม session
 
     card.querySelectorAll('.plan-input-row').forEach(row => {
       if (validationError) return;

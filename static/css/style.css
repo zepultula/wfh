@@ -90,10 +90,13 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 .plan-task-approved{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 8px;border-radius:10px;cursor:default;user-select:none;width:fit-content}
 .plan-task-approved.yes{background:#E8F5E9;color:#2E7D32}
 .plan-task-approved.no{background:#FFEBEE;color:#C62828}
+.plan-task-approved.pending{background:#FFF8E1;color:#E65100}
 /* ปุ่มอนุมัติ/ไม่อนุมัติในหน้ารีวิวแผนงาน */
 .plan-approval-btn{padding:3px 10px;font-size:11px;border-radius:4px;cursor:pointer;border:1px solid #ccc;background:transparent;color:#666;transition:background .15s,border-color .15s,color .15s}
 .plan-approval-btn.apt-active{border-color:#388E3C;background:#E8F5E9;color:#2E7D32}
 .plan-approval-btn.rej-active{border-color:#C62828;background:#FFEBEE;color:#C62828}
+/* tag แสดงสถานะ "อยู่ระหว่างดำเนินการ" — แทนปุ่มยกเลิกเมื่องานถูก inject ลงรายงานแล้ว */
+.plan-inprogress-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:500;padding:2px 10px;border-radius:10px;cursor:default;user-select:none;background:#FFF8E1;color:#E65100;border:1px solid #FFE082}
 
 /* KPI row: ตัวชี้วัดและค่าเป้าหมายเคียงข้างกัน */
 .plan-kpi-row{display:flex;gap:6px}
