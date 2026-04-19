@@ -1,8 +1,8 @@
 # WFH Daily Report — API Documentation
 
-**Base URL:** `http://127.0.0.1:8000`  
-**Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.5.2
+**Base URL:** `http://127.0.0.1:8100`  
+**Interactive Docs (Swagger UI):** `http://127.0.0.1:8100/docs`  
+**Version:** 3.6.1
 
 ---
 
@@ -778,22 +778,21 @@ GET /api/admin/reports/export?date=2026-04-15
   "week_start": "2026-04-14",
   "created_at": "2026-04-14 09:00:00",
   "updated_at": "2026-04-15 10:30:00",
-  "days": {
-    "2026-04-14": [
-      {
-        "id": 1,
-        "title": "ประชุมทีม",
-        "description": "",
-        "goal": "สรุปแผนงานไตรมาส 2",
-        "output": "เอกสารสรุปแผน 1 ฉบับ",
-        "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
-        "kpi_target": "1 แผน",
-        "approved": false,
-        "approved_by": "",
-        "approved_at": ""
-      }
-    ]
-  }
+  "tasks": [
+    {
+      "id": 1,
+      "title": "ประชุมทีม",
+      "active_days": ["2026-04-14", "2026-04-16"],
+      "description": "",
+      "goal": "สรุปแผนงานไตรมาส 2",
+      "output": "เอกสารสรุปแผน 1 ฉบับ",
+      "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
+      "kpi_target": "1 แผน",
+      "approved": false,
+      "approved_by": "",
+      "approved_at": ""
+    }
+  ]
 }
 ```
 
@@ -810,19 +809,18 @@ GET /api/admin/reports/export?date=2026-04-15
 ```json
 {
   "week_start": "2026-04-14",
-  "days": {
-    "2026-04-14": [
-      {
-        "id": 1,
-        "title": "ประชุมทีม",
-        "description": "",
-        "goal": "สรุปแผนงานไตรมาส 2",
-        "output": "เอกสารสรุปแผน 1 ฉบับ",
-        "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
-        "kpi_target": "1 แผน"
-      }
-    ]
-  }
+  "tasks": [
+    {
+      "id": 1618451234567,
+      "title": "ประชุมทีม",
+      "active_days": ["2026-04-14"],
+      "description": "",
+      "goal": "สรุปแผนงานไตรมาส 2",
+      "output": "เอกสารสรุปแผน 1 ฉบับ",
+      "kpi_name": "จำนวนแผนงานที่ได้รับอนุมัติ",
+      "kpi_target": "1 แผน"
+    }
+  ]
 }
 ```
 
@@ -882,7 +880,6 @@ Admin/Supervisor ดูแผนของลูกน้องทุกคนส
 **Request Body**
 ```json
 {
-  "date": "2026-04-14",
   "task_id": 1,
   "approved": true
 }
@@ -1196,10 +1193,13 @@ GET /api/fuel/savings/weekly?week=2026-04-15
 ### TaskModel
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | int | ลำดับงาน |
+| `id` | int | ลำดับงาน / Timestamp ID |
 | `title` | string | ชื่องาน |
-| `description` | string | รายละเอียด (optional, default `""`) |
+| `description` | string | รายละเอียด (optional) |
 | `status` | string | `done` / `prog` / `pend` |
+| `task_type` | string | `"งานประจำ"`, `"งานที่รับมอบหมาย"`, `"แผนงานเชิงพัฒนา"` |
+| `started_at` | string | ISO Timestamp (เมื่อกดเริ่ม Timer) |
+| `elapsed_seconds` | int | จำนวนวินาทีที่ใช้ไปสะสม |
 
 ---
 
@@ -1221,8 +1221,9 @@ GET /api/fuel/savings/weekly?week=2026-04-15
 ### PlanTask
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `id` | int | บังคับ | ID งาน (stable — ไม่เปลี่ยนเมื่อเพิ่ม/ลบงานอื่น) |
+| `id` | int | บังคับ | ID งาน (stable — ใช้ Date.now()) |
 | `title` | string | บังคับ | ชื่องาน |
+| `active_days` | `string[]` | บังคับ | รายการวันที่เลือกปฏิบัติงาน `[YYYY-MM-DD]` |
 | `description` | string | ไม่บังคับ (default `""`) | คำอธิบายเพิ่มเติม |
 | `goal` | string | บังคับ (UI) / optional (API) | เป้าหมายของงาน |
 | `output` | string | บังคับ (UI) / optional (API) | ผลผลิต/สิ่งที่ส่งมอบ |
