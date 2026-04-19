@@ -39,6 +39,8 @@ class TaskModel(BaseModel):
     from_plan: Optional[bool] = False
     files: Optional[List[TaskFile]] = []
     links: Optional[List[TaskLink]] = []
+    started_at: Optional[str] = None       #? ISO timestamp เมื่อเริ่มจับเวลางาน (None = ยังไม่เริ่ม)
+    elapsed_seconds: Optional[int] = None  #? วินาทีสะสมเมื่อหยุดจับเวลา (None = กำลังวิ่งอยู่)
 
 #? โครงสร้างพื้นฐานของรายงาน (Base Schema)
 class ReportBase(BaseModel):

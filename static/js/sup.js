@@ -9,6 +9,11 @@ if (!isSuperAdmin) {
   window.location.replace('/employee');
 }
 
+function formatSeconds(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  return [h, m, sec].map(v => String(v).padStart(2, '0')).join(':');
+}
+
 const thM=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 const thD=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
 let currentReportId = null; //? เก็บ ID รายงานที่กำลังเปิดดูรายละเอียด
@@ -468,12 +473,24 @@ function renderReportDetail(report) {
           attachHTML = `<div style="margin-top:6px;padding-left:36px;display:flex;flex-wrap:wrap;">${fList}${lList}</div>`;
         }
 
+        //? คำนวณเวลาที่ใช้กับงานนี้เพื่อแสดงให้ผู้ประเมินเห็น
+        let timerBadge = '';
+        if (t.elapsed_seconds != null && t.elapsed_seconds > 0) {
+          const icon = t.status === 'done' ? '✓' : t.status === 'pend' ? '◯' : '⏱';
+          const cls  = t.status === 'done' ? 'is-done' : t.status === 'pend' ? 'is-pend' : '';
+          timerBadge = `<span class="task-timer ${cls}" style="flex-shrink:0">${icon} ${formatSeconds(t.elapsed_seconds)}</span>`;
+        } else if (t.started_at && t.status === 'prog') {
+          const elapsed = Math.floor((Date.now() - new Date(t.started_at).getTime()) / 1000);
+          timerBadge = `<span class="task-timer" style="flex-shrink:0">⏱ ${formatSeconds(Math.max(0, elapsed))}</span>`;
+        }
+
         return `
           <div style="padding:10px 0;border-bottom:0.5px solid var(--color-border-tertiary);">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
-              <div style="display:flex;align-items:center;gap:10px;flex:1">
+              <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
                 <span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)}</span>
                 <span style="font-size:14px;font-weight:500;color:var(--color-text-primary)">${(t.title || '').replace(/</g, '&lt;')}</span>
+                ${timerBadge}
               </div>
               ${descBtn}
             </div>
