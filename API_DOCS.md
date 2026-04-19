@@ -1,4 +1,4 @@
-# WFH Daily Report — API Documentation
+﻿# WFH Daily Report — API Documentation
 
 **Base URL:** `http://127.0.0.1:8100`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8100/docs`  
