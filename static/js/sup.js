@@ -21,6 +21,7 @@ let currentUser = null;     //? เก็บข้อมูลผู้ใช้
 let annEditId = null;       //? null = สร้างใหม่, string = แก้ไขประกาศที่มีอยู่
 let _annsList = [];         //? cache รายการประกาศสำหรับ lookup ตอนเปิด edit modal
 let reviewWeekStart = null; //? สัปดาห์ที่กำลังดูในหน้ารีวิวแผนงาน (YYYY-MM-DD ของวันจันทร์)
+let detailTimerInterval = null; //? เก็บ interval ของตัวจับเวลาในหน้าละเอียด
 
 //? ฟังก์ชันเริ่มต้น: ดึงข้อมูลตัวตนจาก API เพื่อยืนยันสิทธิ์และปรับรูปแบบเมนูตามระดับ Level
 async function initUser() {
@@ -399,6 +400,7 @@ function showDetail(reportId){
 
 //? ฟังก์ชันกลับสู่หน้าหลัก
 function hideDetail(){
+  if (detailTimerInterval) clearInterval(detailTimerInterval);
   document.getElementById('sup-detail').style.display = 'none';
   const el = document.getElementById('sup-list');
   el.style.display = 'block';
@@ -408,6 +410,7 @@ function hideDetail(){
 /* ── โหลดรายละเอียดรายงาน (Load report detail) ── */
 //? ดึงข้อมูลรายงานเชิงลึกรายบุคคลตาม ID (user_id_date)
 async function loadReportDetail(reportId) {
+  if (detailTimerInterval) clearInterval(detailTimerInterval);
   currentReportId = reportId; //? จดจำ ID ไว้สำหรับการนำทางและคอมเมนท์
   try {
     const res = await fetch(`/api/reports/${reportId}`);
@@ -481,7 +484,7 @@ function renderReportDetail(report) {
           timerBadge = `<span class="task-timer ${cls}" style="flex-shrink:0">${icon} ${formatSeconds(t.elapsed_seconds)}</span>`;
         } else if (t.started_at && t.status === 'prog') {
           const elapsed = Math.floor((Date.now() - new Date(t.started_at).getTime()) / 1000);
-          timerBadge = `<span class="task-timer" style="flex-shrink:0">⏱ ${formatSeconds(Math.max(0, elapsed))}</span>`;
+          timerBadge = `<span class="task-timer sup-active-timer" data-started-at="${t.started_at}" style="flex-shrink:0">⏱ ${formatSeconds(Math.max(0, elapsed))}</span>`;
         }
 
         return `
@@ -529,6 +532,24 @@ function renderReportDetail(report) {
   `;
 
   renderComments(report.comments, 's-thread');
+  initDetailTimers();
+}
+
+//? ฟังก์ชันสำหรับ Tick เวลาในหน้าละเอียด
+function initDetailTimers() {
+  if (detailTimerInterval) clearInterval(detailTimerInterval);
+  const activeTimers = document.querySelectorAll('.sup-active-timer');
+  if (activeTimers.length === 0) return;
+
+  detailTimerInterval = setInterval(() => {
+    const now = Date.now();
+    activeTimers.forEach(el => {
+      const startedAt = el.dataset.startedAt;
+      if (!startedAt) return;
+      const elapsed = Math.floor((now - new Date(startedAt).getTime()) / 1000);
+      el.textContent = `⏱ ${formatSeconds(Math.max(0, elapsed))}`;
+    });
+  }, 1000);
 }
 
 /* ── Render empty detail (no report for date) ── */
