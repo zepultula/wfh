@@ -2090,15 +2090,29 @@ async function loadPlansReview() {
   }
 }
 
-//? วาดหน้ารีวิวแผนงาน — card ต่อพนักงาน
+//? ชื่อวันสั้น (จ,อ,พ,พฤ,ศ,ส) สำหรับ day-badges ในหน้ารีวิว
+const _dayShortSup = ['จ','อ','พ','พฤ','ศ','ส'];
+
+//? แปลง list ของ YYYY-MM-DD → HTML day badges "จ อ พ"
+function _activeDaysBadges(activeDays) {
+  if (!activeDays || !activeDays.length) return '<span style="font-size:11px;color:var(--color-text-secondary)">—</span>';
+  return activeDays.map(ds => {
+    try {
+      const d = new Date(ds + 'T00:00:00');
+      const wi = d.getDay(); // 0=อา,1=จ,...,6=ส
+      const idx = wi === 0 ? 6 : wi - 1; // แปลง: จ=0,อ=1,...,ส=5
+      return `<span class="day-badge">${_dayShortSup[idx]}</span>`;
+    } catch { return ''; }
+  }).join('');
+}
+
+//? วาดหน้ารีวิวแผนงานเชิงพัฒนา — card ต่อพนักงาน (flat task list + day badges)
 function renderPlansReview(plans) {
   const container = document.getElementById('plans-review-container');
   if (!plans.length) {
     container.innerHTML = '<div style="padding:1.5rem;color:var(--color-text-secondary);font-size:13px;text-align:center">ไม่มีแผนงานสำหรับสัปดาห์นี้</div>';
     return;
   }
-  const dayLabels = ['วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์'];
-  const dates = _getWeekDates(reviewWeekStart);
 
   container.innerHTML = '';
   plans.forEach(plan => {
@@ -2106,53 +2120,46 @@ function renderPlansReview(plans) {
     card.className = 'card';
     card.style.cssText = 'padding:.875rem 1.25rem;margin-bottom:.875rem';
 
-    let daysHtml = '';
-    dates.forEach((dateStr, di) => {
-      const tasks = (plan.days || {})[dateStr] || [];
-      if (!tasks.length) return;
-      const d = new Date(dateStr + 'T00:00:00');
-      const dateLabel = `${dayLabels[di]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
-      let tasksHtml = tasks.map((t, i) => {
-        const isApproved = t.approved === true;
-        const isRejected = !t.approved && !!t.approved_by;
-        //? inReport: งานที่อนุมัติแล้วและถูก inject ลงใน report collection — ล็อกไม่ให้ยกเลิกอนุมัติ
-        const inReport = isApproved && t.in_report === true;
-        const byText = t.approved_by
-          ? `<span style="font-size:11px;color:${isApproved ? '#388E3C' : '#C62828'};align-self:center">โดย ${escHtmlSup(t.approved_by)}</span>`
-          : '';
-        //? แสดงปุ่มตามสถานะ: ถ้าอยู่ระหว่างดำเนินการแล้ว แทนปุ่มยกเลิกด้วย tag
-        const actionBtns = inReport
-          ? `<span class="plan-inprogress-tag">⋯ อยู่ระหว่างดำเนินการ</span>${byText}`
-          : `<button class="plan-approval-btn${isApproved ? ' apt-active' : ''}"
-                    onclick="approveTask('${plan.id}','${dateStr}',${t.id},true,this)">✓ อนุมัติ</button>
-             <button class="plan-approval-btn${isRejected ? ' rej-active' : ''}"
-                    onclick="approveTask('${plan.id}','${dateStr}',${t.id},false,this)">✗ ไม่อนุมัติ</button>
-             ${byText}`;
-        return `
-        <div class="plan-task-row">
-          <span class="plan-task-num">${i+1}</span>
-          <div class="plan-task-body">
-            <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:1px">ชื่องาน</div>
-            <div style="font-size:13px;font-weight:500">${escHtmlSup(t.title)}</div>
-            ${t.description ? `<div style="font-size:12px;margin-top:4px"><span style="color:var(--color-text-secondary)">คำอธิบายงาน:</span> ${escHtmlSup(t.description)}</div>` : ''}
-            ${t.goal   ? `<div style="font-size:12px;margin-top:3px"><span style="color:var(--color-text-secondary)">เป้าหมาย:</span> ${escHtmlSup(t.goal)}</div>` : ''}
-            ${t.output ? `<div style="font-size:12px"><span style="color:var(--color-text-secondary)">ผลผลิต:</span> ${escHtmlSup(t.output)}</div>` : ''}
-            ${(t.kpi_name || t.kpi_target) ? `
-            <div style="font-size:12px;display:flex;gap:12px;flex-wrap:wrap">
-              ${t.kpi_name   ? `<span><span style="color:var(--color-text-secondary)">ตัวชี้วัด:</span> ${escHtmlSup(t.kpi_name)}</span>` : ''}
-              ${t.kpi_target ? `<span><span style="color:var(--color-text-secondary)">ค่าเป้าหมาย:</span> ${escHtmlSup(t.kpi_target)}</span>` : ''}
-            </div>` : ''}
-            <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">
-              ${actionBtns}
-            </div>
+    const tasks = plan.tasks || [];
+    let tasksHtml = '';
+    tasks.forEach((t, i) => {
+      const isApproved = t.approved === true;
+      const isRejected = !t.approved && !!t.approved_by;
+      //? inReport: อนุมัติแล้วและถูก inject ลงใน report อย่างน้อย 1 วัน — ล็อกไม่ให้ยกเลิก
+      const inReport = isApproved && t.in_report === true;
+      const byText = t.approved_by
+        ? `<span style="font-size:11px;color:${isApproved ? '#388E3C' : '#C62828'};align-self:center">โดย ${escHtmlSup(t.approved_by)}</span>`
+        : '';
+      const actionBtns = inReport
+        ? `<span class="plan-inprogress-tag">⋯ อยู่ระหว่างดำเนินการ</span>${byText}`
+        : `<button class="plan-approval-btn${isApproved ? ' apt-active' : ''}"
+                  onclick="approveTask('${plan.id}',${t.id},true,this)">✓ อนุมัติ</button>
+           <button class="plan-approval-btn${isRejected ? ' rej-active' : ''}"
+                  onclick="approveTask('${plan.id}',${t.id},false,this)">✗ ไม่อนุมัติ</button>
+           ${byText}`;
+      tasksHtml += `
+      <div class="plan-task-row">
+        <span class="plan-task-num">${i+1}</span>
+        <div class="plan-task-body">
+          <div style="font-size:12px;color:var(--color-text-secondary);margin-bottom:1px">ชื่องาน</div>
+          <div style="font-size:13px;font-weight:500">${escHtmlSup(t.title)}</div>
+          <div style="font-size:12px;margin-top:4px;display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+            <span style="color:var(--color-text-secondary)">วันที่ทำงาน:</span>
+            ${_activeDaysBadges(t.active_days)}
           </div>
-        </div>`;
-      }).join('');
-      daysHtml += `
-        <div style="margin-bottom:.75rem">
-          <div class="plan-day-hd" style="margin-bottom:.35rem">${dateLabel}</div>
-          ${tasksHtml}
-        </div>`;
+          ${t.description ? `<div style="font-size:12px;margin-top:3px"><span style="color:var(--color-text-secondary)">คำอธิบายงาน:</span> ${escHtmlSup(t.description)}</div>` : ''}
+          ${t.goal   ? `<div style="font-size:12px;margin-top:3px"><span style="color:var(--color-text-secondary)">เป้าหมาย:</span> ${escHtmlSup(t.goal)}</div>` : ''}
+          ${t.output ? `<div style="font-size:12px"><span style="color:var(--color-text-secondary)">ผลผลิต:</span> ${escHtmlSup(t.output)}</div>` : ''}
+          ${(t.kpi_name || t.kpi_target) ? `
+          <div style="font-size:12px;display:flex;gap:12px;flex-wrap:wrap">
+            ${t.kpi_name   ? `<span><span style="color:var(--color-text-secondary)">ตัวชี้วัด:</span> ${escHtmlSup(t.kpi_name)}</span>` : ''}
+            ${t.kpi_target ? `<span><span style="color:var(--color-text-secondary)">ค่าเป้าหมาย:</span> ${escHtmlSup(t.kpi_target)}</span>` : ''}
+          </div>` : ''}
+          <div style="display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap">
+            ${actionBtns}
+          </div>
+        </div>
+      </div>`;
     });
 
     card.innerHTML = `
@@ -2163,7 +2170,7 @@ function renderPlansReview(plans) {
           <div style="font-size:11px;color:var(--color-text-secondary)">${escHtmlSup(plan.department || '')}</div>
         </div>
       </div>
-      ${daysHtml || '<div style="font-size:12px;color:var(--color-text-secondary)">ไม่มีงานในสัปดาห์นี้</div>'}`;
+      ${tasksHtml || '<div style="font-size:12px;color:var(--color-text-secondary)">ไม่มีงานในสัปดาห์นี้</div>'}`;
 
     container.appendChild(card);
   });
@@ -2173,8 +2180,8 @@ function escHtmlSup(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-//? อนุมัติหรือไม่อนุมัติงานในแผน — optimistic update (อัปเดต DOM ทันที ไม่ต้อง reload ทั้งหน้า)
-async function approveTask(planId, date, taskId, approved, btn) {
+//? อนุมัติหรือไม่อนุมัติงานในแผนเชิงพัฒนา — optimistic update (อัปเดต DOM ทันที ไม่ต้อง reload ทั้งหน้า)
+async function approveTask(planId, taskId, approved, btn) {
   const container   = btn.closest('div');
   const [aptBtn, rejBtn] = container.querySelectorAll('.plan-approval-btn');
   const bySpan      = container.querySelector('span[style*="align-self"]');
@@ -2205,7 +2212,7 @@ async function approveTask(planId, date, taskId, approved, btn) {
     const res = await fetch(`/api/plans/${planId}/approve`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, task_id: taskId, approved })
+      body: JSON.stringify({ task_id: taskId, approved })
     });
     if (!res.ok) {
       //! 409: งานอยู่ระหว่างดำเนินการแล้ว — ยกเลิกอนุมัติไม่ได้

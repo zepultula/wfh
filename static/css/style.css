@@ -2,6 +2,7 @@
 
 :root {
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --color-primary: #1059A3;
   --color-background-primary: #ffffff;
   --color-background-secondary: #f4f6f8;
   --color-border-primary: #e1e4e8;
@@ -101,6 +102,22 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 /* KPI row: ตัวชี้วัดและค่าเป้าหมายเคียงข้างกัน */
 .plan-kpi-row{display:flex;gap:6px}
 .plan-kpi-row > div{flex:1;min-width:0}
+
+/* ── แผนงานเชิงพัฒนา: task card (v3.6) ── */
+/* card หลักของแต่ละงาน (แทน plan-day-card เดิม) */
+.plan-task-card{background:var(--color-background-primary);border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:.85rem 1rem;margin-bottom:.75rem}
+/* label ของ field ภายใน task card */
+.plan-field-lbl{font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:3px}
+/* plan-task-num ใช้ใน header row ของ card (ไม่มี padding-top แล้ว) */
+.plan-task-card .plan-task-num{padding-top:0;font-weight:600;color:var(--color-primary);font-size:13px}
+/* day-selector: container ของปุ่มเลือกวัน */
+.plan-day-selector{display:flex;gap:5px;flex-wrap:wrap}
+/* ปุ่มวันใน day-selector */
+.plan-day-btn{min-width:34px;padding:4px 5px;font-size:11px;line-height:1.2;border-radius:6px;border:1px solid var(--color-border-secondary);background:var(--color-background-secondary);color:var(--color-text-secondary);cursor:pointer;text-align:center;transition:background .12s,border-color .12s,color .12s}
+.plan-day-btn.pdb-active{background:var(--color-primary);border-color:var(--color-primary);color:#fff;font-weight:600}
+.plan-day-btn:disabled{opacity:.45;cursor:not-allowed}
+/* day-badge: แสดงวันในหน้ารีวิว (หัวหน้า) */
+.day-badge{display:inline-flex;align-items:center;justify-content:center;min-width:22px;padding:1px 6px;font-size:11px;font-weight:600;border-radius:4px;background:#E3F2FD;color:#1565C0;border:1px solid #BBDEFB}
 
 /* ── page body ── */
 .pg{padding:1.5rem;max-width:none}

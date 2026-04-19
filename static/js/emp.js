@@ -1083,7 +1083,7 @@ function escHtml(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-//? แสดงหน้าแผนงาน (ซ่อนฟอร์มรายงานปัจจุบัน)
+//? แสดงหน้าแผนงานเชิงพัฒนา (ซ่อนฟอร์มรายงานปัจจุบัน)
 function showPlanView() {
   document.getElementById('e-main').style.display = 'none';
   document.getElementById('e-plan-view').style.display = '';
@@ -1091,7 +1091,7 @@ function showPlanView() {
   loadPlanForWeek(planWeekStart);
 }
 
-//? ซ่อนหน้าแผนงาน กลับไปหน้าฟอร์มรายงาน
+//? ซ่อนหน้าแผนงานเชิงพัฒนา กลับไปหน้าฟอร์มรายงาน
 function hidePlanView() {
   document.getElementById('e-plan-view').style.display = 'none';
   document.getElementById('e-main').style.display = '';
@@ -1105,206 +1105,226 @@ function navigatePlanWeek(delta) {
   loadPlanForWeek(planWeekStart);
 }
 
-//? ดึงแผนงานจาก API แล้ว render
+//? ดึงแผนงานเชิงพัฒนาจาก API แล้ว render
 async function loadPlanForWeek(weekStart) {
   document.getElementById('plan-week-label').textContent = formatPlanWeekLabel(weekStart);
   const container = document.getElementById('plan-days-container');
   container.innerHTML = '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
   try {
     const res = await fetch(`/api/plans?week=${weekStart}`);
-    _planData = res.ok ? await res.json() : { days: {} };
+    _planData = res.ok ? await res.json() : { tasks: [] };
   } catch(e) {
-    _planData = { days: {} };
+    _planData = { tasks: [] };
   }
-  renderPlanDays(_planData, weekStart);
+  renderPlanTasks(_planData, weekStart);
 }
 
-//? วาดหน้าแผนงาน — day cards (จ–ส) พร้อมช่อง input งานแต่ละวัน
-function renderPlanDays(planData, weekStart) {
+//? Trash SVG icon สำหรับปุ่มลบ
+const _trashSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/></svg>`;
+
+//? ชื่อวัน (สั้น) สำหรับ day-selector buttons
+const _dayShort = ['จ','อ','พ','พฤ','ศ','ส'];
+
+//? สร้าง HTML ของ day-selector buttons สำหรับงานหนึ่ง
+function _buildDaySelectorHtml(weekDates, activeDays, locked) {
+  return weekDates.map((ds, i) => {
+    const d = new Date(ds + 'T00:00:00');
+    const isActive = activeDays.includes(ds);
+    const activeClass = isActive ? ' pdb-active' : '';
+    const disabledAttr = locked ? ' disabled' : '';
+    const label = `${_dayShort[i]}<br><span style="font-size:9px">${d.getDate()}</span>`;
+    return `<button type="button" class="plan-day-btn${activeClass}" data-date="${ds}"${disabledAttr} onclick="togglePlanDay(this)">${label}</button>`;
+  }).join('');
+}
+
+//? Toggle การเลือก/ยกเลิก วันใน day-selector
+function togglePlanDay(btn) {
+  btn.classList.toggle('pdb-active');
+}
+
+//? วาดหน้าแผนงานเชิงพัฒนา — flat task list พร้อม day-selector
+function renderPlanTasks(planData, weekStart) {
   const container = document.getElementById('plan-days-container');
-  const days = planData.days || {};
-  const dates = getWeekDates(weekStart);
-  const dayLabels = ['วันจันทร์','วันอังคาร','วันพุธ','วันพฤหัสบดี','วันศุกร์','วันเสาร์'];
-  const trashSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/></svg>`;
+  const tasks = planData.tasks || [];
+  const weekDates = getWeekDates(weekStart);
 
   container.innerHTML = '';
-  dates.forEach((dateStr, di) => {
-    const tasks = days[dateStr] || [];
-    const d = new Date(dateStr + 'T00:00:00');
-    const dateLabel = `${dayLabels[di]}ที่ ${d.getDate()} ${thM[d.getMonth()]} ${d.getFullYear()+543}`;
 
-    const card = document.createElement('div');
-    card.className = 'plan-day-card';
-    card.dataset.date = dateStr;
-
-    let tasksHtml = '';
-    tasks.forEach((t, i) => {
-      const isApproved = t.approved === true;
-      const isRejected = !t.approved && t.approved_by;
-      const isPending = !t.approved && !t.approved_by;
-      const approvalBadge = isApproved
-        ? `<span class="plan-task-approved yes">✓ อนุมัติแล้ว</span>`
-        : isRejected
-        ? `<span class="plan-task-approved no">✗ ไม่อนุมัติ</span>`
-        : isPending
-        ? `<span class="plan-task-approved pending">⋯ รอการอนุมัติ</span>`
-        : '';
-      const _lk = isApproved ? 'readonly' : '';
-      const _ls = isApproved ? ';background:#F0F8FF;cursor:default' : '';
-      tasksHtml += `
-        <div class="plan-input-row" style="display:flex;gap:6px;margin-bottom:6px;align-items:flex-start" data-task-id="${t.id}"${isApproved ? ' data-approved="1"' : ''}>
-          <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${i+1}</span>
-          <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-            <div>
-              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ชื่องาน <span style="color:#e74c3c">*</span></label>
-              <input type="text" class="inp plan-task-title" value="${escHtml(t.title)}" placeholder="ชื่องาน..." style="font-size:13px${_ls}" ${_lk}>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">เป้าหมาย <span style="color:#e74c3c">*</span></label>
-              <input type="text" class="inp plan-task-goal" value="${escHtml(t.goal||'')}" placeholder="เป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ผลผลิต <span style="color:#e74c3c">*</span></label>
-              <input type="text" class="inp plan-task-output" value="${escHtml(t.output||'')}" placeholder="ผลผลิต..." style="font-size:12px${_ls}" ${_lk}>
-            </div>
-            <div class="plan-kpi-row">
-              <div>
-                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ตัวชี้วัด (KPI) <span style="color:#e74c3c">*</span></label>
-                <input type="text" class="inp plan-task-kpi-name" value="${escHtml(t.kpi_name||'')}" placeholder="ตัวชี้วัด (KPI)..." style="font-size:12px${_ls}" ${_lk}>
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ค่าเป้าหมาย <span style="color:#e74c3c">*</span></label>
-                <input type="text" class="inp plan-task-kpi-target" value="${escHtml(t.kpi_target||'')}" placeholder="ค่าเป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
-              </div>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">คำอธิบายเพิ่มเติม</label>
-              <input type="text" class="inp plan-task-desc" value="${escHtml(t.description||'')}" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)..." style="font-size:12px${_ls}" ${_lk}>
-            </div>
-            ${approvalBadge}
-          </div>
-          <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px${isApproved ? ';opacity:0.3;pointer-events:none' : ''}" ${isApproved ? 'disabled' : ''}>${trashSvg}</button>
-        </div>`;
-    });
-
-    card.innerHTML = `
-      <div class="plan-day-hd">${dateLabel}</div>
-      <div class="plan-tasks-list">${tasksHtml}</div>
-      <button class="nav-btn nav-btn-back" style="margin-top:6px;font-size:11px" onclick="addPlanTaskRow(this)">+ เพิ่มงาน</button>`;
-
-    container.appendChild(card);
+  //? render task cards
+  const taskList = document.createElement('div');
+  taskList.id = 'plan-task-list';
+  tasks.forEach((t, i) => {
+    taskList.appendChild(_buildPlanTaskCard(t, i, weekDates));
   });
+  container.appendChild(taskList);
+
+  //? ปุ่ม + เพิ่มงาน (global)
+  const addBtn = document.createElement('button');
+  addBtn.className = 'nav-btn nav-btn-back';
+  addBtn.style.cssText = 'margin-top:10px;font-size:12px';
+  addBtn.textContent = '+ เพิ่มงาน';
+  addBtn.onclick = () => addPlanTaskRow(weekDates);
+  container.appendChild(addBtn);
 }
 
-//? เพิ่มแถวงานใหม่ในวัน (dateStr) ที่ระบุ
-function addPlanTaskRow(btn) {
-  const list = btn.previousElementSibling; // .plan-tasks-list
-  const count = list.querySelectorAll('.plan-input-row').length;
-  const trashSvg = `<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='3 6 5 6 21 6'/><path d='M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6'/><path d='M10 11v6'/><path d='M14 11v6'/><path d='M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2'/></svg>`;
-  const row = document.createElement('div');
-  row.className = 'plan-input-row';
-  row.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;align-items:flex-start';
-  row.innerHTML = `
-    <span style="font-size:12px;color:var(--color-text-secondary);padding-top:7px;min-width:18px;flex-shrink:0">${count+1}</span>
-    <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+//? สร้าง DOM element ของ task card สำหรับหนึ่งงาน
+function _buildPlanTaskCard(t, idx, weekDates) {
+  const isApproved = t.approved === true;
+  const isRejected = !t.approved && t.approved_by;
+  const approvalBadge = isApproved
+    ? `<span class="plan-task-approved yes">✓ อนุมัติแล้ว</span>`
+    : isRejected
+    ? `<span class="plan-task-approved no">✗ ไม่อนุมัติ</span>`
+    : `<span class="plan-task-approved pending">⋯ รอการอนุมัติ</span>`;
+  const locked = isApproved;
+  const _lk = locked ? 'readonly' : '';
+  const _ls = locked ? ';background:#F0F8FF;cursor:default' : '';
+  const activeDays = Array.isArray(t.active_days) ? t.active_days : [];
+
+  const card = document.createElement('div');
+  card.className = 'plan-task-card';
+  card.dataset.taskId = t.id || '';
+  if (locked) card.dataset.approved = '1';
+
+  card.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+      <span class="plan-task-num">${idx + 1}</span>
+      ${approvalBadge}
+      <button onclick="removePlanTaskRow(this)" title="ลบ"
+        style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;margin-left:auto${locked ? ';opacity:0.3;pointer-events:none' : ''}"
+        ${locked ? 'disabled' : ''}>${_trashSvg}</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
       <div>
-        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ชื่องาน <span style="color:#e74c3c">*</span></label>
-        <input type="text" class="inp plan-task-title" placeholder="ชื่องาน..." style="font-size:13px">
+        <label class="plan-field-lbl">ชื่องาน <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-title" value="${escHtml(t.title)}" placeholder="ชื่องาน..." style="font-size:13px${_ls}" ${_lk}>
       </div>
       <div>
-        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">เป้าหมาย <span style="color:#e74c3c">*</span></label>
-        <input type="text" class="inp plan-task-goal" placeholder="เป้าหมาย..." style="font-size:12px">
+        <label class="plan-field-lbl">วันที่ทำงาน <span style="color:#e74c3c">*</span></label>
+        <div class="plan-day-selector">${_buildDaySelectorHtml(weekDates, activeDays, locked)}</div>
       </div>
       <div>
-        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ผลผลิต <span style="color:#e74c3c">*</span></label>
-        <input type="text" class="inp plan-task-output" placeholder="ผลผลิต..." style="font-size:12px">
+        <label class="plan-field-lbl">เป้าหมาย <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-goal" value="${escHtml(t.goal||'')}" placeholder="เป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
+      </div>
+      <div>
+        <label class="plan-field-lbl">ผลผลิต <span style="color:#e74c3c">*</span></label>
+        <input type="text" class="inp plan-task-output" value="${escHtml(t.output||'')}" placeholder="ผลผลิต..." style="font-size:12px${_ls}" ${_lk}>
       </div>
       <div class="plan-kpi-row">
         <div>
-          <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ตัวชี้วัด (KPI) <span style="color:#e74c3c">*</span></label>
-          <input type="text" class="inp plan-task-kpi-name" placeholder="ตัวชี้วัด (KPI)..." style="font-size:12px">
+          <label class="plan-field-lbl">ตัวชี้วัด (KPI) <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="inp plan-task-kpi-name" value="${escHtml(t.kpi_name||'')}" placeholder="ตัวชี้วัด (KPI)..." style="font-size:12px${_ls}" ${_lk}>
         </div>
         <div>
-          <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">ค่าเป้าหมาย <span style="color:#e74c3c">*</span></label>
-          <input type="text" class="inp plan-task-kpi-target" placeholder="ค่าเป้าหมาย..." style="font-size:12px">
+          <label class="plan-field-lbl">ค่าเป้าหมาย <span style="color:#e74c3c">*</span></label>
+          <input type="text" class="inp plan-task-kpi-target" value="${escHtml(t.kpi_target||'')}" placeholder="ค่าเป้าหมาย..." style="font-size:12px${_ls}" ${_lk}>
         </div>
       </div>
       <div>
-        <label style="font-size:11px;color:var(--color-text-secondary);display:block;margin-bottom:2px">คำอธิบายเพิ่มเติม</label>
-        <input type="text" class="inp plan-task-desc" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)..." style="font-size:12px">
+        <label class="plan-field-lbl">คำอธิบายเพิ่มเติม</label>
+        <input type="text" class="inp plan-task-desc" value="${escHtml(t.description||'')}" placeholder="คำอธิบายเพิ่มเติม (ไม่บังคับ)..." style="font-size:12px${_ls}" ${_lk}>
       </div>
-    </div>
-    <button onclick="removePlanTaskRow(this)" title="ลบ" style="background:none;border:none;cursor:pointer;color:#e74c3c;padding:4px;flex-shrink:0;margin-top:2px">${trashSvg}</button>`;
-  list.appendChild(row);
-  row.querySelector('.plan-task-title').focus();
+    </div>`;
+  return card;
 }
 
-//? ลบแถวงานออกจาก day card แล้ว re-index
+//? เพิ่ม task card ใหม่ (ระดับสัปดาห์)
+function addPlanTaskRow(weekDates) {
+  //? รองรับการเรียกจากปุ่มเก่าที่ส่ง weekDates หรือไม่ส่ง
+  const dates = weekDates || getWeekDates(planWeekStart);
+  const list  = document.getElementById('plan-task-list');
+  const count = list ? list.querySelectorAll('.plan-task-card').length : 0;
+  const newTask = { id: Date.now(), title: '', active_days: [], goal: '', output: '',
+                    kpi_name: '', kpi_target: '', description: '', approved: false, approved_by: '', approved_at: '' };
+  const card = _buildPlanTaskCard(newTask, count, dates);
+  if (list) {
+    list.appendChild(card);
+    card.querySelector('.plan-task-title').focus();
+    //? re-index task numbers
+    _reindexPlanCards();
+  }
+}
+
+//? ลบ task card แล้ว re-index
 function removePlanTaskRow(btn) {
-  const row = btn.closest('.plan-input-row');
-  if (row.dataset.approved === '1') {
+  const card = btn.closest('.plan-task-card');
+  if (card.dataset.approved === '1') {
     Swal.fire({ icon: 'warning', title: 'ไม่สามารถลบได้',
                 text: 'งานนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขหรือลบได้',
                 confirmButtonColor: '#1059A3' });
     return;
   }
-  const list = row.parentElement;
-  row.remove();
-  list.querySelectorAll('.plan-input-row').forEach((r, i) => {
-    r.querySelector('span').textContent = i + 1;
+  card.remove();
+  _reindexPlanCards();
+}
+
+//? re-index เลขงาน (1, 2, 3…) หลังเพิ่ม/ลบ
+function _reindexPlanCards() {
+  const list = document.getElementById('plan-task-list');
+  if (!list) return;
+  list.querySelectorAll('.plan-task-card').forEach((c, i) => {
+    const numEl = c.querySelector('.plan-task-num');
+    if (numEl) numEl.textContent = i + 1;
   });
 }
 
-//? บันทึกแผนงาน → POST /api/plans พร้อม Validation ฟิลด์บังคับ
+//? บันทึกแผนงานเชิงพัฒนา → POST /api/plans พร้อม Validation ฟิลด์บังคับ
 async function savePlan() {
   const btn = document.getElementById('btn-save-plan');
   const origText = btn.textContent;
   btn.disabled = true;
   btn.textContent = 'กำลังตรวจสอบ...';
 
-  const days = {};
-  let validationError = null; //! ใช้สำหรับ short-circuit เมื่อพบช่องว่างที่บังคับกรอก
+  const tasks = [];
+  let validationError = null; //! short-circuit เมื่อพบช่องว่างที่บังคับกรอก
+  let nextNewId = Date.now();
 
-  document.querySelectorAll('.plan-day-card').forEach(card => {
-    if (validationError) return;
-    const dateStr = card.dataset.date;
-    const tasks = [];
-    let nextNewId = Date.now(); // ใช้ timestamp เพื่อให้ ID ไม่ซ้ำกันข้าม session
-
-    card.querySelectorAll('.plan-input-row').forEach(row => {
+  const list = document.getElementById('plan-task-list');
+  if (list) {
+    list.querySelectorAll('.plan-task-card').forEach(card => {
       if (validationError) return;
-      const title = row.querySelector('.plan-task-title').value.trim();
-      if (!title) return; // ข้าม row ที่ไม่มีชื่องาน (เหมือนเดิม)
+      const title = card.querySelector('.plan-task-title').value.trim();
+      if (!title) return; // ข้าม card ที่ไม่มีชื่องาน
 
-      //? ตรวจสอบฟิลด์บังคับ — เฉพาะ row ที่มี title เท่านั้น
-      const goal       = row.querySelector('.plan-task-goal').value.trim();
-      const output     = row.querySelector('.plan-task-output').value.trim();
-      const kpi_name   = row.querySelector('.plan-task-kpi-name').value.trim();
-      const kpi_target = row.querySelector('.plan-task-kpi-target').value.trim();
+      //? active_days: เก็บ date ของปุ่มวันที่ถูก toggle (class pdb-active)
+      const active_days = [...card.querySelectorAll('.plan-day-btn.pdb-active')].map(b => b.dataset.date);
 
-      if (!goal)       { validationError = { row, sel: '.plan-task-goal',       label: 'เป้าหมาย' };       return; }
-      if (!output)     { validationError = { row, sel: '.plan-task-output',     label: 'ผลผลิต' };         return; }
-      if (!kpi_name)   { validationError = { row, sel: '.plan-task-kpi-name',   label: 'ตัวชี้วัด (KPI)' }; return; }
-      if (!kpi_target) { validationError = { row, sel: '.plan-task-kpi-target', label: 'ค่าเป้าหมาย' };    return; }
+      //? ตรวจสอบฟิลด์บังคับ
+      const goal       = card.querySelector('.plan-task-goal').value.trim();
+      const output     = card.querySelector('.plan-task-output').value.trim();
+      const kpi_name   = card.querySelector('.plan-task-kpi-name').value.trim();
+      const kpi_target = card.querySelector('.plan-task-kpi-target').value.trim();
 
-      const storedId = parseInt(row.dataset.taskId, 10);
+      if (!active_days.length) { validationError = { card, sel: '.plan-day-selector', label: 'วันที่ทำงาน' }; return; }
+      if (!goal)       { validationError = { card, sel: '.plan-task-goal',       label: 'เป้าหมาย' };       return; }
+      if (!output)     { validationError = { card, sel: '.plan-task-output',     label: 'ผลผลิต' };         return; }
+      if (!kpi_name)   { validationError = { card, sel: '.plan-task-kpi-name',   label: 'ตัวชี้วัด (KPI)' }; return; }
+      if (!kpi_target) { validationError = { card, sel: '.plan-task-kpi-target', label: 'ค่าเป้าหมาย' };    return; }
+
+      const storedId = parseInt(card.dataset.taskId, 10);
       const id = isNaN(storedId) ? nextNewId++ : storedId;
-      tasks.push({ id, title, goal, output, kpi_name, kpi_target,
-                   description: row.querySelector('.plan-task-desc').value.trim() });
+      tasks.push({ id, title, active_days, goal, output, kpi_name, kpi_target,
+                   description: card.querySelector('.plan-task-desc').value.trim() });
     });
-    if (tasks.length > 0) days[dateStr] = tasks;
-  });
+  }
 
   //! แสดง error และหยุดการบันทึกถ้ามีฟิลด์บังคับที่ยังว่างอยู่
   if (validationError) {
     btn.disabled = false;
     btn.textContent = origText;
-    const offending = validationError.row.querySelector(validationError.sel);
-    offending.focus();
-    offending.style.borderColor = '#e74c3c';
-    offending.addEventListener('input', () => { offending.style.borderColor = ''; }, { once: true });
+    //? สำหรับ day-selector: highlight ทั้ง group แทนการ focus input เดี่ยว
+    if (validationError.sel === '.plan-day-selector') {
+      const sel = validationError.card.querySelector('.plan-day-selector');
+      if (sel) { sel.style.outline = '2px solid #e74c3c'; sel.style.borderRadius = '6px';
+                 setTimeout(() => { sel.style.outline = ''; }, 2500); }
+    } else {
+      const offending = validationError.card.querySelector(validationError.sel);
+      if (offending) { offending.focus(); offending.style.borderColor = '#e74c3c';
+                       offending.addEventListener('input', () => { offending.style.borderColor = ''; }, { once: true }); }
+    }
     Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ',
-                text: `กรุณากรอก "${validationError.label}" ให้ครบก่อนบันทึก`,
+                text: `กรุณาระบุ "${validationError.label}" ให้ครบก่อนบันทึก`,
                 confirmButtonColor: '#1059A3' });
     return;
   }
@@ -1314,11 +1334,12 @@ async function savePlan() {
     const res = await fetch('/api/plans', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week_start: planWeekStart, days })
+      body: JSON.stringify({ week_start: planWeekStart, tasks })
     });
     if (res.ok) {
       _planData = await res.json();
-      Swal.fire({ icon: 'success', title: 'บันทึกแล้ว!', text: 'แผนงานสัปดาห์นี้ถูกบันทึกเรียบร้อย', confirmButtonColor: '#2E7D32', timer: 2000, showConfirmButton: false });
+      renderPlanTasks(_planData, planWeekStart);
+      Swal.fire({ icon: 'success', title: 'บันทึกแล้ว!', text: 'แผนงานเชิงพัฒนาสัปดาห์นี้ถูกบันทึกเรียบร้อย', confirmButtonColor: '#2E7D32', timer: 2000, showConfirmButton: false });
     } else {
       const err = await res.json().catch(() => ({}));
       Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: err.detail || 'บันทึกไม่สำเร็จ', confirmButtonColor: '#1059A3' });

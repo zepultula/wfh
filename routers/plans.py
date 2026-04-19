@@ -17,7 +17,6 @@ def _now_bkk() -> str:
 def _get_monday(date_str: str) -> str:
     """คืน YYYY-MM-DD ของวันจันทร์ในสัปดาห์ของ date_str"""
     d = date_mod.fromisoformat(date_str)
-    # weekday(): Monday=0 ... Sunday=6
     monday = d - timedelta(days=d.weekday())
     return monday.isoformat()
 
@@ -50,6 +49,27 @@ def _get_subordinate_user_ids(db, current_user: dict) -> set | None:
     return allowed
 
 
+def _days_to_tasks(days: dict) -> list:
+    """
+    #? Backward compat: แปลง schema เก่า (days dict) → tasks list (schema ใหม่)
+    แต่ละ task จะได้รับ active_days = [วันที่เดียวที่เคยอยู่]
+    """
+    seen_ids = {}
+    result = []
+    for date_str, task_list in days.items():
+        for t in task_list:
+            tid = t.get("id")
+            if tid in seen_ids:
+                # task ID เดิม → append วันใหม่เข้า active_days
+                seen_ids[tid]["active_days"].append(date_str)
+            else:
+                task_copy = dict(t)
+                task_copy["active_days"] = [date_str]
+                seen_ids[tid] = task_copy
+                result.append(task_copy)
+    return result
+
+
 # ─────────────────────────────────────────────────────────────────
 # GET /api/plans  — ดูแผนงานของตัวเอง สำหรับสัปดาห์ที่ระบุ
 # ─────────────────────────────────────────────────────────────────
@@ -61,6 +81,7 @@ def get_my_plan(
     """
     คืนแผนงานของผู้ใช้ปัจจุบันสำหรับสัปดาห์ที่ระบุ
     ?week=YYYY-MM-DD (ถ้าไม่ระบุจะใช้สัปดาห์ปัจจุบัน)
+    รองรับทั้ง schema ใหม่ (tasks[]) และเก่า (days{})
     """
     today = date_mod.today().isoformat()
     week_start = _get_monday(week if week else today)
@@ -69,8 +90,15 @@ def get_my_plan(
     db = get_db()
     doc = db.collection("weekly_plans").document(plan_id).get()
     if not doc.exists:
-        return {"id": plan_id, "week_start": week_start, "days": {}}
-    return {"id": doc.id, **doc.to_dict()}
+        return {"id": plan_id, "week_start": week_start, "tasks": []}
+
+    data = doc.to_dict()
+    #? backward compat: doc เก่ามี field 'days' → แปลงเป็น tasks
+    if "days" in data and "tasks" not in data:
+        data["tasks"] = _days_to_tasks(data.pop("days"))
+    elif "days" in data:
+        data.pop("days")  # ถ้ามีทั้งสองให้ใช้ tasks
+    return {"id": doc.id, **data}
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -81,7 +109,7 @@ def save_plan(
     data: WeeklyPlanCreate,
     current_user: dict = Depends(get_current_user)
 ):
-    """สร้างหรือแทนที่แผนงานสำหรับสัปดาห์ที่ระบุ"""
+    """สร้างหรือแทนที่แผนงานเชิงพัฒนาสำหรับสัปดาห์ที่ระบุ"""
     week_start = _get_monday(data.week_start)
     user_id = current_user.get("user_id", "")
     plan_id = f"{user_id}_{week_start}"
@@ -92,54 +120,50 @@ def save_plan(
     existing = doc_ref.get()
     created_at = existing.to_dict().get("created_at", now) if existing.exists else now
 
-    # แปลง days dict: ตรวจสอบให้แต่ละ task มีฟิลด์ครบ
-    clean_days = {}
+    #? สร้าง lookup map จากงานเดิม (id → task dict) เพื่อ preserve approval state
+    old_tasks_map: dict[int, dict] = {}
+    if existing.exists:
+        old_data = existing.to_dict()
+        old_list = old_data.get("tasks", [])
+        if not old_list and "days" in old_data:
+            #? backward compat: doc เก่าใช้ days dict
+            old_list = _days_to_tasks(old_data["days"])
+        for ot in old_list:
+            old_tasks_map[ot.get("id")] = ot
+
     valid_dates = set(_get_week_dates(week_start))
-    for date_key, tasks in data.days.items():
-        if date_key not in valid_dates:
-            continue  # ข้ามวันที่ไม่อยู่ในสัปดาห์นี้
-        clean_tasks = []
-        for t in tasks:
-            if isinstance(t, dict):
-                task_dict = t
-            else:
-                task_dict = t.model_dump() if hasattr(t, 'model_dump') else dict(t)
-            # เก็บสถานะ approved ไว้จากเดิม (ถ้ามี)
-            existing_approved = False
-            existing_approved_by = ""
-            existing_approved_at = ""
-            if existing.exists:
-                old_tasks = existing.to_dict().get("days", {}).get(date_key, [])
-                for old_t in old_tasks:
-                    if old_t.get("id") == task_dict.get("id"):
-                        existing_approved = old_t.get("approved", False)
-                        existing_approved_by = old_t.get("approved_by", "")
-                        existing_approved_at = old_t.get("approved_at", "")
-                        break
-            clean_tasks.append({
-                "id":          task_dict.get("id", len(clean_tasks) + 1),
-                "title":       task_dict.get("title", ""),
-                "description": task_dict.get("description", ""),
-                "goal":        task_dict.get("goal", ""),        #? เป้าหมายของงาน
-                "output":      task_dict.get("output", ""),      #? ผลผลิต/สิ่งที่ส่งมอบ
-                "kpi_name":    task_dict.get("kpi_name", ""),    #? ชื่อตัวชี้วัด KPI
-                "kpi_target":  task_dict.get("kpi_target", ""),  #? ค่าเป้าหมาย KPI
-                # ห้ามให้ client เขียนทับ approval — ใช้ค่าเดิมจาก Firestore เสมอ
-                # เฉพาะ PATCH /approve เท่านั้นที่เปลี่ยน approved/approved_by/approved_at ได้
-                "approved":    existing_approved,
-                "approved_by": existing_approved_by,
-                "approved_at": existing_approved_at,
-            })
-        clean_days[date_key] = clean_tasks
+    clean_tasks = []
+    for t in data.tasks:
+        task_dict = t.model_dump() if hasattr(t, 'model_dump') else dict(t)
+        tid = task_dict.get("id")
+
+        #? กรอง active_days ให้อยู่ในสัปดาห์นี้เท่านั้น
+        active_days = [d for d in task_dict.get("active_days", []) if d in valid_dates]
+
+        #? preserve approved/approved_by/approved_at จาก Firestore — ห้าม client เขียนทับ
+        old = old_tasks_map.get(tid, {})
+        clean_tasks.append({
+            "id":          tid,
+            "title":       task_dict.get("title", ""),
+            "active_days": active_days,
+            "description": task_dict.get("description", ""),
+            "goal":        task_dict.get("goal", ""),
+            "output":      task_dict.get("output", ""),
+            "kpi_name":    task_dict.get("kpi_name", ""),
+            "kpi_target":  task_dict.get("kpi_target", ""),
+            "approved":    old.get("approved", False),
+            "approved_by": old.get("approved_by", ""),
+            "approved_at": old.get("approved_at", ""),
+        })
 
     payload = {
-        "user_id": user_id,
-        "user_name": current_user.get("name", ""),
+        "user_id":    user_id,
+        "user_name":  current_user.get("name", ""),
         "department": current_user.get("department", ""),
         "week_start": week_start,
         "created_at": created_at,
         "updated_at": now,
-        "days": clean_days,
+        "tasks":      clean_tasks,
     }
     doc_ref.set(payload)
     return {"id": plan_id, **payload}
@@ -156,22 +180,21 @@ def get_plan_tasks_for_date(
     """
     คืน list ของงานที่วางแผนไว้สำหรับวันที่ระบุ
     ใช้โดย emp.js สำหรับ auto-inject งานเข้าฟอร์มรายงานประจำวัน
+    เฉพาะงานที่ approved=True และ date อยู่ใน active_days
     """
     week_start = _get_monday(date)
-    #? ดึง user_id (personal_id) มาใช้งาน พร้อมจัดการขจัดช่องว่างที่อาจติดมา
+    #? ดึง user_id (personal_id) มาใช้งาน พร้อมจัดการช่องว่างที่อาจติดมา
     user_id = str(current_user.get("user_id", "")).strip()
     db = get_db()
-    
-    #? Fallback: หาก user_id ใน JWT ว่าง (บางกรณีสิทธิ์ Admin อาจไม่มีเลขพนักงานใน Token)
-    #? ให้ดึงจาก Firestore โดยตรงผ่าน email (sub) เพื่อความแม่นยำสูงสุด
+
+    #? Fallback: หาก user_id ใน JWT ว่าง ให้ดึงจาก Firestore โดยตรงผ่าน email
     if not user_id:
         email = current_user.get("sub")
         if email:
             u_doc = db.collection("users").document(email).get()
             if u_doc.exists:
                 user_id = str(u_doc.to_dict().get("personal_id", "")).strip()
-    
-    #? หากยังไม่พบ user_id หรือเป็นค่าว่าง จะไม่สามารถระบุแผนงานได้
+
     if not user_id:
         return []
 
@@ -179,11 +202,17 @@ def get_plan_tasks_for_date(
     doc = db.collection("weekly_plans").document(plan_id).get()
     if not doc.exists:
         return []
-    days = doc.to_dict().get("days", {})
-    tasks = days.get(date, [])
-    #? กรองงาน: แสดงเฉพาะงานที่ "อนุมัติแล้ว" (approved=True) เท่านั้น
-    #! งาน Pending (ยังไม่รีวิว) และงานที่ถูกปฏิเสธ จะไม่ถูก inject เข้ารายงาน
-    return [t for t in tasks if t.get("approved", False) is True]
+
+    doc_data = doc.to_dict()
+    tasks = doc_data.get("tasks", [])
+
+    #? backward compat: doc เก่าใช้ days dict
+    if not tasks and "days" in doc_data:
+        tasks = _days_to_tasks(doc_data["days"])
+
+    #? กรองงาน: approved=True และ date อยู่ใน active_days
+    #! งาน Pending และงานที่ถูกปฏิเสธ (หรือไม่มีวันนี้ใน active_days) จะไม่ถูก inject
+    return [t for t in tasks if t.get("approved") is True and date in t.get("active_days", [])]
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -201,7 +230,6 @@ def get_subordinates_plans(
     level = current_user.get("level", 0)
     role = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
-        #? พนักงานทั่วไปเข้าถึงหน้านี้ไม่ได้
         raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
 
     today = date_mod.today().isoformat()
@@ -209,7 +237,6 @@ def get_subordinates_plans(
     db = get_db()
     allowed_ids = _get_subordinate_user_ids(db, current_user)
 
-    # query แผนทั้งหมดในสัปดาห์นั้น
     plans_ref = db.collection("weekly_plans").where("week_start", "==", week_start)
     result = []
     for doc in plans_ref.stream():
@@ -217,37 +244,45 @@ def get_subordinates_plans(
         uid = d.get("user_id", "")
         if allowed_ids is not None and uid not in allowed_ids:
             continue
+        #? backward compat: แปลง days → tasks ถ้ายังเป็น schema เก่า
+        if "days" in d and "tasks" not in d:
+            d["tasks"] = _days_to_tasks(d.pop("days"))
+        elif "days" in d:
+            d.pop("days")
         result.append({"id": doc.id, **d})
 
-    #? รวบรวม report_id ทั้งหมดที่ต้องตรวจสอบ แล้วดึงพร้อมกันด้วย get_all() (batch read)
-    #? แทนการวน loop แบบ sequential เพื่อลด network round-trip จาก N×M ครั้ง → 1 ครั้ง
+    #? batch read: เช็ก in_report สำหรับทุก active_day ของทุก task พร้อมกัน
     all_report_refs: list = []
-    ref_to_key: dict[str, tuple[str, str]] = {}  # doc_path → (uid, date_str)
+    ref_to_info: dict[str, tuple[str, int]] = {}  # path → (uid, task_id)
 
     for plan_dict in result:
         uid = plan_dict.get("user_id", "")
-        for date_str, tasks in plan_dict.get("days", {}).items():
-            if tasks:
+        for task in plan_dict.get("tasks", []):
+            tid = task.get("id")
+            for date_str in task.get("active_days", []):
                 report_id = f"{uid}_{date_str}"
                 ref = db.collection("reports").document(report_id)
                 all_report_refs.append(ref)
-                ref_to_key[ref.path] = (uid, date_str)
+                ref_to_info[ref.path] = (uid, tid)
 
-    #? batch get — Firestore ส่ง request เดียวสำหรับทุก doc พร้อมกัน
+    #? ดึงทุก report doc พร้อมกัน (1 round-trip)
     exists_set: set[str] = set()
     if all_report_refs:
         for snap in db.get_all(all_report_refs):
             if snap.exists:
                 exists_set.add(snap.reference.path)
 
-    #? ใส่ in_report flag ให้แต่ละ task โดยอ้างอิงจาก exists_set
+    #? สร้าง set (uid, task_id) ที่มี report อย่างน้อย 1 วัน
+    in_report_keys: set[tuple[str, int]] = set()
+    for path, (uid, tid) in ref_to_info.items():
+        if path in exists_set:
+            in_report_keys.add((uid, tid))
+
+    #? ใส่ in_report flag ให้แต่ละ task
     for plan_dict in result:
         uid = plan_dict.get("user_id", "")
-        for date_str, tasks in plan_dict.get("days", {}).items():
-            report_path = db.collection("reports").document(f"{uid}_{date_str}").path
-            has_report = report_path in exists_set
-            for task in tasks:
-                task["in_report"] = has_report
+        for task in plan_dict.get("tasks", []):
+            task["in_report"] = (uid, task.get("id")) in in_report_keys
 
     return result
 
@@ -262,12 +297,11 @@ def approve_task(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Supervisor อนุมัติหรือยกเลิกการอนุมัติงานแต่ละรายการในแผน
+    Supervisor อนุมัติหรือยกเลิกการอนุมัติงานแต่ละรายการในแผนงานเชิงพัฒนา
     """
     level = current_user.get("level", 0)
     role = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
-        #? พนักงานทั่วไปเข้าหน้าอนุมัติไม่ได้
         raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
 
     db = get_db()
@@ -277,40 +311,41 @@ def approve_task(
         raise HTTPException(status_code=404, detail="ไม่พบแผนงานที่ระบุ")
 
     plan_data = doc.to_dict()
-    days = plan_data.get("days", {})
-    tasks_for_date = days.get(data.date, [])
+    tasks = plan_data.get("tasks", [])
 
-    #! ป้องกันการยกเลิกการอนุมัติ หากงานนี้มีรายงานประจำวันแล้ว (อยู่ระหว่างดำเนินการ)
-    if not data.approved:
-        report_id = f"{plan_data.get('user_id', '')}_{data.date}"
-        if db.collection("reports").document(report_id).get().exists:
-            raise HTTPException(
-                status_code=409,
-                detail="ไม่สามารถยกเลิกการอนุมัติได้ เนื่องจากงานนี้อยู่ระหว่างดำเนินการในรายงานแล้ว"
-            )
+    #? backward compat
+    if not tasks and "days" in plan_data:
+        tasks = _days_to_tasks(plan_data["days"])
 
-    updated = False
-    for task in tasks_for_date:
-        if task.get("id") == data.task_id:
-            task["approved"] = data.approved
-            task["approved_by"] = current_user.get("name", current_user.get("sub", ""))
-            task["approved_at"] = _now_bkk() if data.approved else ""
-            updated = True
-            break
-
-    if not updated:
-        #? แจ้งเตือนหากไม่พบงานที่ระบุในแผนของวันนั้นๆ
+    #? หา task ที่ต้องการในรายการ tasks (ระดับสัปดาห์)
+    target_task = next((t for t in tasks if t.get("id") == data.task_id), None)
+    if target_task is None:
         raise HTTPException(status_code=404, detail="ไม่พบงานที่ระบุในแผนงาน")
 
-    days[data.date] = tasks_for_date
-    doc_ref.update({"days": days, "updated_at": _now_bkk()})
-    return {"status": "ok", "plan_id": plan_id, "date": data.date, "task_id": data.task_id, "approved": data.approved}
+    #! ป้องกันการยกเลิกอนุมัติ หากงานนี้มีรายงานประจำวันแล้วใน active_days ใดก็ตาม
+    if not data.approved:
+        uid = plan_data.get("user_id", "")
+        for date_str in target_task.get("active_days", []):
+            report_id = f"{uid}_{date_str}"
+            if db.collection("reports").document(report_id).get().exists:
+                raise HTTPException(
+                    status_code=409,
+                    detail="ไม่สามารถยกเลิกการอนุมัติได้ เนื่องจากงานนี้อยู่ระหว่างดำเนินการในรายงานแล้ว"
+                )
+
+    target_task["approved"]    = data.approved
+    target_task["approved_by"] = current_user.get("name", current_user.get("sub", ""))
+    target_task["approved_at"] = _now_bkk() if data.approved else ""
+
+    doc_ref.update({"tasks": tasks, "updated_at": _now_bkk()})
+    return {"status": "ok", "plan_id": plan_id, "task_id": data.task_id, "approved": data.approved}
 
 
 # ─────────────────────────────────────────────────────────────────
 # Helpers สำหรับ Excel Export แผนงาน
 # ─────────────────────────────────────────────────────────────────
 _TH_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+_TH_DAYS_SHORT = ["จ", "อ", "พ", "พฤ", "ศ", "ส"]
 _TH_MON_SHORT = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
                  "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
 _TH_MON_LONG  = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
@@ -321,6 +356,18 @@ def _format_date_th(date_str: str) -> str:
     """แปลง YYYY-MM-DD → "วัน DD เดือน" ภาษาไทย"""
     d = date_mod.fromisoformat(date_str)
     return f"{_TH_DAYS[d.weekday()]} {d.day} {_TH_MON_SHORT[d.month]}"
+
+
+def _format_active_days_th(active_days: list[str]) -> str:
+    """แปลง list ของ YYYY-MM-DD → "จ, อ, พ" ย่อวัน"""
+    result = []
+    for ds in sorted(active_days):
+        try:
+            d = date_mod.fromisoformat(ds)
+            result.append(_TH_DAYS_SHORT[d.weekday()])
+        except Exception:
+            pass
+    return ", ".join(result)
 
 
 def _get_months_mondays(month: str) -> list[str]:
@@ -339,9 +386,10 @@ def _get_months_mondays(month: str) -> list[str]:
 
 def _build_plans_wb(rows: list[dict], title: str, has_week_col: bool):
     """
-    สร้าง openpyxl Workbook สำหรับ Excel แผนงาน
-    rows แต่ละ dict: user_id, user_name, department, week_label?, date_str, task_num,
-                    title, goal, output, kpi_name, kpi_target, approved, approved_by
+    สร้าง openpyxl Workbook สำหรับ Excel แผนงานเชิงพัฒนา
+    rows แต่ละ dict: user_id, user_name, department, week_label?, task_num,
+                    active_days_str, title, goal, output, kpi_name, kpi_target,
+                    approved, approved_by
     """
     import io
     import openpyxl
@@ -366,14 +414,14 @@ def _build_plans_wb(rows: list[dict], title: str, has_week_col: bool):
     left_va   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
 
     if has_week_col:
-        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "สัปดาห์ที่", "วันที่", "งานที่",
+        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "สัปดาห์ที่", "วันที่ทำงาน", "งานที่",
                       "ชื่องาน", "เป้าหมาย", "ผลผลิต", "ชื่อ KPI", "เป้าหมาย KPI", "สถานะ"]
-        col_widths = [6, 18, 14, 12, 14, 6, 24, 20, 20, 18, 14, 14]
+        col_widths = [6, 18, 14, 12, 16, 6, 24, 20, 20, 18, 14, 14]
         center_cols = {1, 6}
     else:
-        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "วันที่", "งานที่",
+        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "วันที่ทำงาน", "งานที่",
                       "ชื่องาน", "เป้าหมาย", "ผลผลิต", "ชื่อ KPI", "เป้าหมาย KPI", "สถานะ"]
-        col_widths = [6, 18, 14, 14, 6, 24, 20, 20, 18, 14, 14]
+        col_widths = [6, 18, 14, 16, 6, 24, 20, 20, 18, 14, 14]
         center_cols = {1, 5}
 
     COLS = len(headers)
@@ -434,13 +482,13 @@ def _build_plans_wb(rows: list[dict], title: str, has_week_col: bool):
         row_fill = PatternFill("solid", fgColor="FFFFFF") if row % 2 == 0 else alt_fill
 
         if has_week_col:
-            values = [seq, entry["user_name"], entry["department"], entry["week_label"],
-                      _format_date_th(entry["date_str"]), entry["task_num"],
+            values = [seq, entry["user_name"], entry["department"], entry.get("week_label", ""),
+                      entry.get("active_days_str", ""), entry["task_num"],
                       entry["title"], entry["goal"], entry["output"],
                       entry["kpi_name"], entry["kpi_target"], status_txt]
         else:
             values = [seq, entry["user_name"], entry["department"],
-                      _format_date_th(entry["date_str"]), entry["task_num"],
+                      entry.get("active_days_str", ""), entry["task_num"],
                       entry["title"], entry["goal"], entry["output"],
                       entry["kpi_name"], entry["kpi_target"], status_txt]
 
@@ -468,7 +516,7 @@ def export_plans_weekly(
     week: str | None = None,
     current_user: dict = Depends(get_current_user)
 ):
-    """Export แผนงานของลูกน้องทั้งหมดในสัปดาห์ที่ระบุ เป็น Excel (.xlsx)"""
+    """Export แผนงานเชิงพัฒนาของลูกน้องทั้งหมดในสัปดาห์ที่ระบุ เป็น Excel (.xlsx)"""
     level = current_user.get("level", 0)
     role  = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
@@ -484,33 +532,35 @@ def export_plans_weekly(
         d = doc.to_dict()
         if allowed_ids is not None and d.get("user_id", "") not in allowed_ids:
             continue
+        if "days" in d and "tasks" not in d:
+            d["tasks"] = _days_to_tasks(d.pop("days"))
+        elif "days" in d:
+            d.pop("days")
         plans.append({"id": doc.id, **d})
     plans.sort(key=lambda p: (p.get("department", ""), p.get("user_name", "")))
 
-    week_dates = _get_week_dates(week_start)
     rows = []
-    for plan in plans:
-        days = plan.get("days", {})
-        for date_str in week_dates:
-            for ti, task in enumerate(days.get(date_str, []), 1):
-                rows.append({
-                    "user_id":    plan.get("user_id", ""),
-                    "user_name":  plan.get("user_name", ""),
-                    "department": plan.get("department", ""),
-                    "date_str":   date_str,
-                    "task_num":   ti,
-                    "title":      task.get("title", ""),
-                    "goal":       task.get("goal", ""),
-                    "output":     task.get("output", ""),
-                    "kpi_name":   task.get("kpi_name", ""),
-                    "kpi_target": task.get("kpi_target", ""),
-                    "approved":   task.get("approved", False),
-                    "approved_by": task.get("approved_by", ""),
-                })
+    for ti_plan, plan in enumerate(plans):
+        for ti, task in enumerate(plan.get("tasks", []), 1):
+            rows.append({
+                "user_id":        plan.get("user_id", ""),
+                "user_name":      plan.get("user_name", ""),
+                "department":     plan.get("department", ""),
+                "task_num":       ti,
+                "active_days_str": _format_active_days_th(task.get("active_days", [])),
+                "title":          task.get("title", ""),
+                "goal":           task.get("goal", ""),
+                "output":         task.get("output", ""),
+                "kpi_name":       task.get("kpi_name", ""),
+                "kpi_target":     task.get("kpi_target", ""),
+                "approved":       task.get("approved", False),
+                "approved_by":    task.get("approved_by", ""),
+            })
 
+    week_dates = _get_week_dates(week_start)
     s = date_mod.fromisoformat(week_dates[0])
     e = date_mod.fromisoformat(week_dates[5])
-    title = (f"แผนงานรายสัปดาห์  {s.day} {_TH_MON_SHORT[s.month]}"
+    title = (f"แผนงานเชิงพัฒนารายสัปดาห์  {s.day} {_TH_MON_SHORT[s.month]}"
              f" — {e.day} {_TH_MON_SHORT[e.month]} {e.year + 543}")
 
     output = _build_plans_wb(rows, title, has_week_col=False)
@@ -529,7 +579,7 @@ def export_plans_monthly(
     month: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Export แผนงานของลูกน้องทั้งหมดในเดือนที่ระบุ (YYYY-MM) เป็น Excel (.xlsx)"""
+    """Export แผนงานเชิงพัฒนาของลูกน้องทั้งหมดในเดือนที่ระบุ (YYYY-MM) เป็น Excel (.xlsx)"""
     level = current_user.get("level", 0)
     role  = current_user.get("role", "").lower()
     if level == 0 and 'admin' not in role:
@@ -549,10 +599,13 @@ def export_plans_monthly(
             d = doc.to_dict()
             if allowed_ids is not None and d.get("user_id", "") not in allowed_ids:
                 continue
+            if "days" in d and "tasks" not in d:
+                d["tasks"] = _days_to_tasks(d.pop("days"))
+            elif "days" in d:
+                d.pop("days")
             week_plans.append({"id": doc.id, **d})
         plans_by_week[week_start] = week_plans
 
-    # รวบรวม employees เรียงตาม department → user_name
     emp_map: dict[str, dict] = {}
     for week_plans in plans_by_week.values():
         for p in week_plans:
@@ -570,27 +623,25 @@ def export_plans_monthly(
                          if p.get("user_id") == uid), None)
             if not plan:
                 continue
-            days = plan.get("days", {})
-            for date_str in _get_week_dates(week_start):
-                for ti, task in enumerate(days.get(date_str, []), 1):
-                    rows.append({
-                        "user_id":    uid,
-                        "user_name":  emp_info["user_name"],
-                        "department": emp_info["department"],
-                        "week_label": f"สัปดาห์ที่ {wi}",
-                        "date_str":   date_str,
-                        "task_num":   ti,
-                        "title":      task.get("title", ""),
-                        "goal":       task.get("goal", ""),
-                        "output":     task.get("output", ""),
-                        "kpi_name":   task.get("kpi_name", ""),
-                        "kpi_target": task.get("kpi_target", ""),
-                        "approved":   task.get("approved", False),
-                        "approved_by": task.get("approved_by", ""),
-                    })
+            for ti, task in enumerate(plan.get("tasks", []), 1):
+                rows.append({
+                    "user_id":        uid,
+                    "user_name":      emp_info["user_name"],
+                    "department":     emp_info["department"],
+                    "week_label":     f"สัปดาห์ที่ {wi}",
+                    "task_num":       ti,
+                    "active_days_str": _format_active_days_th(task.get("active_days", [])),
+                    "title":          task.get("title", ""),
+                    "goal":           task.get("goal", ""),
+                    "output":         task.get("output", ""),
+                    "kpi_name":       task.get("kpi_name", ""),
+                    "kpi_target":     task.get("kpi_target", ""),
+                    "approved":       task.get("approved", False),
+                    "approved_by":    task.get("approved_by", ""),
+                })
 
     year_val, mon_val = int(month[:4]), int(month[5:7])
-    title = f"แผนงานรายเดือน  {_TH_MON_LONG[mon_val]} {year_val + 543}"
+    title = f"แผนงานเชิงพัฒนารายเดือน  {_TH_MON_LONG[mon_val]} {year_val + 543}"
 
     output = _build_plans_wb(rows, title, has_week_col=True)
     return StreamingResponse(

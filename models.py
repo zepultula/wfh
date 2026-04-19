@@ -105,10 +105,11 @@ class AnnouncementUpdate(BaseModel):
     is_active: Optional[bool] = None
     target: Optional[Literal["all", "employee", "admin"]] = None
 
-#? โครงสร้างงานแต่ละรายการในแผนงานรายสัปดาห์
+#? โครงสร้างงานแต่ละรายการในแผนงานเชิงพัฒนารายสัปดาห์
 class PlanTask(BaseModel):
     id: int
     title: str
+    active_days: List[str] = []     #? วันที่งานนี้จะทำ ["YYYY-MM-DD", ...] — จากรายการวันในสัปดาห์
     description: Optional[str] = ""
     goal: Optional[str] = ""        #? เป้าหมายของงานนี้คืออะไร
     output: Optional[str] = ""      #? ผลผลิต/สิ่งที่ส่งมอบ (deliverable)
@@ -118,14 +119,13 @@ class PlanTask(BaseModel):
     approved_by: Optional[str] = ""
     approved_at: Optional[str] = ""
 
-#? สร้าง/อัปเดตแผนงานสำหรับสัปดาห์หนึ่ง (จันทร์–เสาร์)
+#? สร้าง/อัปเดตแผนงานเชิงพัฒนาสำหรับสัปดาห์หนึ่ง (task-level สัปดาห์)
 class WeeklyPlanCreate(BaseModel):
-    week_start: str   #? "YYYY-MM-DD" ต้องเป็นวันจันทร์เสมอ
-    days: dict        #? { "YYYY-MM-DD": List[PlanTask dict] }
+    week_start: str         #? "YYYY-MM-DD" ต้องเป็นวันจันทร์เสมอ
+    tasks: List[PlanTask]   #? รายการงานทั้งหมดของสัปดาห์ — แต่ละงานมี active_days ระบุวันที่ทำ
 
-#? อนุมัติหรือยกเลิกการอนุมัติงานเดี่ยวในแผน
+#? อนุมัติหรือยกเลิกการอนุมัติงานเดี่ยวในแผน (ระดับสัปดาห์ ไม่ต้องระบุวันแล้ว)
 class TaskApprovalUpdate(BaseModel):
-    date: str         #? "YYYY-MM-DD"
     task_id: int
     approved: bool
 
