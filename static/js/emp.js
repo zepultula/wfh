@@ -349,7 +349,12 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
             <div class="tnum">${idx+1}</div>
             <div class="task-body">
               <input type="text" value="${task.title.replace(/"/g,'&quot;')}" readonly style="background:#F0F8FF;cursor:default" />
-              <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+              <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+                <select class="task-type-select" style="width:auto;font-size:11px;padding:3px 8px;height:26px;border-radius:12px;background:#f8fafc" disabled>
+                  <option value="แผนงานเชิงพัฒนา" selected>แผนงานเชิงพัฒนา</option>
+                </select>
+                <div class="spills" style="margin:0"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+              </div>
               <span class="task-timer">⏱ 00:00:00</span>
               <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
               <button class="${attachClass} btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
@@ -437,7 +442,17 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
         <div class="tnum">${idx+1}</div>
         <div class="task-body">
           <input type="text" value="${task.title.replace(/"/g,'&quot;')}" ${titleAttr} />
-          <div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+            <select class="task-type-select" style="width:auto;font-size:11px;padding:3px 8px;height:26px;border-radius:12px;background:#f8fafc" ${readOnly || isFromPlan ? 'disabled' : ''}>
+              ${isFromPlan ? `
+                <option value="แผนงานเชิงพัฒนา" selected>แผนงานเชิงพัฒนา</option>
+              ` : `
+                <option value="งานประจำ" ${task.task_type === 'งานประจำ' ? 'selected' : ''}>งานประจำ</option>
+                <option value="งานที่รับมอบหมาย" ${task.task_type === 'งานที่รับมอบหมาย' ? 'selected' : ''}>งานที่รับมอบหมาย</option>
+              `}
+            </select>
+            <div class="spills" style="margin:0"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+          </div>
           <span class="task-timer">⏱ 00:00:00</span>
           <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
           <button class="${attachClass} btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
@@ -771,6 +786,7 @@ async function autoSaveTasks() {
       tasks.push({
         id: idx + 1,
         title,
+        task_type: row.querySelector('.task-type-select').value,
         status,
         description: row.getAttribute('data-desc') || '',
         from_plan: row.dataset.fromPlan === 'true',
@@ -805,7 +821,22 @@ document.getElementById('e-add').addEventListener('click', () => {
   const r = document.createElement('div');
   r.className = 'task-row';
   //? สร้างโครงสร้าง HTML สำหรับแถวงานใหม่
-  r.innerHTML = `<div class="tnum"></div><div class="task-body"><input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:5px"/><div class="spills"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div><span class="task-timer">⏱ 00:00:00</span><button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button><button class="btn-desc btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button></div><button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+  r.innerHTML = `
+    <div class="tnum"></div>
+    <div class="task-body">
+      <input type="text" placeholder="ระบุงานที่ทำ..." style="margin-bottom:8px"/>
+      <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center">
+        <select class="task-type-select" style="width:auto;font-size:11px;padding:3px 8px;height:26px;border-radius:12px;background:#f8fafc">
+          <option value="งานประจำ" selected>งานประจำ</option>
+          <option value="งานที่รับมอบหมาย">งานที่รับมอบหมาย</option>
+        </select>
+        <div class="spills" style="margin:0"><span class="sp sp-done">✓ เสร็จแล้ว</span><span class="sp sp-prog">⋯ กำลังดำเนินการ</span><span class="sp sp-pend">◯ ยังไม่เริ่ม</span></div>
+      </div>
+      <span class="task-timer">⏱ 00:00:00</span>
+      <button class="btn-desc" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
+      <button class="btn-desc btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
+    </div>
+    <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
   document.getElementById('e-tasks').appendChild(r);
 
   //? ตั้งสถานะเริ่มต้นเป็น "กำลังดำเนินการ" — timer จะเริ่มเมื่อพิมพ์ชื่องาน (จัดการใน setupTaskStatusHandlers)
@@ -898,6 +929,7 @@ document.getElementById('btn-submit').addEventListener('click', async () => {
       reportData.tasks.push({
         id: idx+1,
         title,
+        task_type: row.querySelector('.task-type-select').value,
         status,
         description: row.getAttribute('data-desc') || '', //? รายละเอียดที่เก็บซ่อนไว้ใน Attribute
         from_plan: row.dataset.fromPlan === 'true',       //? งานจากแผน: ชื่อจะถูกล็อกเมื่อโหลดซ้ำ

@@ -490,6 +490,7 @@ function renderReportDetail(report) {
               <div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap">
                 <span class="bdg ${getStatusBadgeClass(t.status)}">${getStatusSymbol(t.status)}</span>
                 <span style="font-size:14px;font-weight:500;color:var(--color-text-primary)">${(t.title || '').replace(/</g, '&lt;')}</span>
+                <span class="bdg ${getTaskTypeBadgeClass(t.from_plan ? 'แผนงานเชิงพัฒนา' : t.task_type)}" style="font-size:10px;margin-left:4px">${t.from_plan ? 'แผนงานเชิงพัฒนา' : (t.task_type || 'งานประจำ')}</span>
                 ${timerBadge}
               </div>
               ${descBtn}
@@ -853,6 +854,13 @@ function getStatusSymbol(status) {
   if (status === 'done') return '✓';
   if (status === 'prog') return '⋯';
   return '◯';
+}
+
+//? คืนค่าชื่อ Class CSS ตามประเภทงาน
+function getTaskTypeBadgeClass(type) {
+  if (type === 'แผนงานเชิงพัฒนา') return 'bdg-teal';
+  if (type === 'งานที่รับมอบหมาย') return 'bdg-indigo';
+  return 'bdg-blue'; // งานประจำ
 }
 
 /* ════════════════════════════════════════

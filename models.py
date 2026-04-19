@@ -32,6 +32,7 @@ class TaskLink(BaseModel):
 class TaskModel(BaseModel):
     id: int
     title: str
+    task_type: str = "งานประจำ" #? ประเภทงาน (งานประจำ, งานที่รับมอบหมาย)
     description: Optional[str] = ""
     #? สถานะของงาน: 'done' (เสร็จสิ้น), 'prog' (กำลังทำ), 'pend' (รอดำเนินการ)
     status: str
