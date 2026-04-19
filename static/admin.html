@@ -208,6 +208,11 @@
         <button class="nav-btn nav-btn-back" onclick="navigateReviewWeek(-1)" title="สัปดาห์ก่อนหน้า">‹</button>
         <span id="review-week-label" style="font-size:13px;font-weight:600;color:var(--color-text-primary)">—</span>
         <button class="nav-btn nav-btn-back" onclick="navigateReviewWeek(1)" title="สัปดาห์ถัดไป">›</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <button id="btn-export-plans-week" onclick="exportPlansWeekly()" style="font-size:12.5px;font-weight:600;padding:7px 14px;background:#1D9E75;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;box-shadow:0 2px 6px rgba(29,158,117,.35);letter-spacing:.01em"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>ดาวน์โหลด Excel</button>
+          <input type="month" id="plans-export-month" style="font-size:12px;padding:6px 9px;border:1px solid var(--color-border-primary);border-radius:7px;outline:none;background:var(--color-background-secondary);color:var(--color-text-primary);">
+          <button id="btn-export-plans-month" onclick="exportPlansMonthly()" style="font-size:12.5px;font-weight:600;padding:7px 14px;background:#1D9E75;color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap;box-shadow:0 2px 6px rgba(29,158,117,.35);letter-spacing:.01em"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>ดาวน์โหลด Excel</button>
+        </div>
       </div>
       <div id="plans-review-container">
         <div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>

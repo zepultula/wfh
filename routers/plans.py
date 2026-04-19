@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from database import get_db
 from auth import get_current_user
 from models import WeeklyPlanCreate, TaskApprovalUpdate
@@ -304,3 +305,296 @@ def approve_task(
     days[data.date] = tasks_for_date
     doc_ref.update({"days": days, "updated_at": _now_bkk()})
     return {"status": "ok", "plan_id": plan_id, "date": data.date, "task_id": data.task_id, "approved": data.approved}
+
+
+# ─────────────────────────────────────────────────────────────────
+# Helpers สำหรับ Excel Export แผนงาน
+# ─────────────────────────────────────────────────────────────────
+_TH_DAYS = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]
+_TH_MON_SHORT = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
+                 "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+_TH_MON_LONG  = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+                 "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"]
+
+
+def _format_date_th(date_str: str) -> str:
+    """แปลง YYYY-MM-DD → "วัน DD เดือน" ภาษาไทย"""
+    d = date_mod.fromisoformat(date_str)
+    return f"{_TH_DAYS[d.weekday()]} {d.day} {_TH_MON_SHORT[d.month]}"
+
+
+def _get_months_mondays(month: str) -> list[str]:
+    """คืน list ของวันจันทร์ (week_start) ทุกสัปดาห์ที่มีวันอยู่ในเดือน YYYY-MM"""
+    import calendar as _cal
+    year, mon = int(month[:4]), int(month[5:7])
+    first_day = date_mod(year, mon, 1)
+    last_day  = date_mod(year, mon, _cal.monthrange(year, mon)[1])
+    start_monday = first_day - timedelta(days=first_day.weekday())
+    mondays, d = [], start_monday
+    while d <= last_day:
+        mondays.append(d.isoformat())
+        d += timedelta(weeks=1)
+    return mondays
+
+
+def _build_plans_wb(rows: list[dict], title: str, has_week_col: bool):
+    """
+    สร้าง openpyxl Workbook สำหรับ Excel แผนงาน
+    rows แต่ละ dict: user_id, user_name, department, week_label?, date_str, task_num,
+                    title, goal, output, kpi_name, kpi_target, approved, approved_by
+    """
+    import io
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    def side():
+        return Side(style="thin", color="CCCCCC")
+    def bdr():
+        return Border(left=side(), right=side(), top=side(), bottom=side())
+
+    hdr_fill   = PatternFill("solid", fgColor="1059A3")
+    emp_fill   = PatternFill("solid", fgColor="E8EFF8")
+    green_fill = PatternFill("solid", fgColor="D4EDDA")
+    orng_fill  = PatternFill("solid", fgColor="FFF3CD")
+    red_fill   = PatternFill("solid", fgColor="F8D7DA")
+    alt_fill   = PatternFill("solid", fgColor="F9FAFB")
+
+    hdr_font  = Font(bold=True, color="FFFFFF", size=10)
+    emp_font  = Font(bold=True, color="1A3A6B", size=10)
+    body_font = Font(size=10)
+    center    = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_va   = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+
+    if has_week_col:
+        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "สัปดาห์ที่", "วันที่", "งานที่",
+                      "ชื่องาน", "เป้าหมาย", "ผลผลิต", "ชื่อ KPI", "เป้าหมาย KPI", "สถานะ"]
+        col_widths = [6, 18, 14, 12, 14, 6, 24, 20, 20, 18, 14, 14]
+        center_cols = {1, 6}
+    else:
+        headers    = ["ลำดับ", "ชื่อ-สกุล", "แผนก", "วันที่", "งานที่",
+                      "ชื่องาน", "เป้าหมาย", "ผลผลิต", "ชื่อ KPI", "เป้าหมาย KPI", "สถานะ"]
+        col_widths = [6, 18, 14, 14, 6, 24, 20, 20, 18, 14, 14]
+        center_cols = {1, 5}
+
+    COLS = len(headers)
+
+    def col_letter(n: int) -> str:
+        return chr(ord('A') + n - 1)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = title[:31]
+
+    # Title (row 1)
+    ws.merge_cells(f"A1:{col_letter(COLS)}1")
+    c = ws["A1"]
+    c.value     = title
+    c.font      = Font(bold=True, size=12, color="1A3A6B")
+    c.alignment = center
+    ws.row_dimensions[1].height = 28
+
+    # Header (row 2)
+    for ci, (h, w) in enumerate(zip(headers, col_widths), 1):
+        c            = ws.cell(row=2, column=ci, value=h)
+        c.font       = hdr_font
+        c.fill       = hdr_fill
+        c.alignment  = center
+        c.border     = bdr()
+        ws.column_dimensions[col_letter(ci)].width = w
+    ws.row_dimensions[2].height = 28
+    ws.freeze_panes = "A3"
+
+    row, seq, last_emp = 3, 1, None
+
+    for entry in rows:
+        uid = entry.get("user_id", "")
+
+        # Employee separator
+        if uid != last_emp:
+            ws.merge_cells(f"A{row}:{col_letter(COLS)}{row}")
+            c            = ws.cell(row=row, column=1)
+            c.value      = f"  {entry['user_name']}  [{entry['department']}]"
+            c.font       = emp_font
+            c.fill       = emp_fill
+            c.alignment  = left_va
+            for ci in range(1, COLS + 1):
+                ws.cell(row=row, column=ci).border = bdr()
+            ws.row_dimensions[row].height = 22
+            row      += 1
+            last_emp  = uid
+
+        # Status
+        if entry.get("approved"):
+            s_fill, status_txt = green_fill, "✓ อนุมัติแล้ว"
+        elif entry.get("approved_by"):
+            s_fill, status_txt = red_fill,   "✗ ไม่อนุมัติ"
+        else:
+            s_fill, status_txt = orng_fill,  "⋯ รอการอนุมัติ"
+
+        row_fill = PatternFill("solid", fgColor="FFFFFF") if row % 2 == 0 else alt_fill
+
+        if has_week_col:
+            values = [seq, entry["user_name"], entry["department"], entry["week_label"],
+                      _format_date_th(entry["date_str"]), entry["task_num"],
+                      entry["title"], entry["goal"], entry["output"],
+                      entry["kpi_name"], entry["kpi_target"], status_txt]
+        else:
+            values = [seq, entry["user_name"], entry["department"],
+                      _format_date_th(entry["date_str"]), entry["task_num"],
+                      entry["title"], entry["goal"], entry["output"],
+                      entry["kpi_name"], entry["kpi_target"], status_txt]
+
+        for ci, val in enumerate(values, 1):
+            c            = ws.cell(row=row, column=ci, value=val)
+            c.font       = body_font
+            c.fill       = s_fill if ci == COLS else row_fill
+            c.alignment  = center if ci in center_cols else left_va
+            c.border     = bdr()
+        ws.row_dimensions[row].height = 18
+        seq += 1
+        row += 1
+
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return output
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /api/plans/export/weekly  — ส่งออก Excel แผนงานรายสัปดาห์
+# ─────────────────────────────────────────────────────────────────
+@router.get("/export/weekly")
+def export_plans_weekly(
+    week: str | None = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export แผนงานของลูกน้องทั้งหมดในสัปดาห์ที่ระบุ เป็น Excel (.xlsx)"""
+    level = current_user.get("level", 0)
+    role  = current_user.get("role", "").lower()
+    if level == 0 and 'admin' not in role:
+        raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
+
+    today      = date_mod.today().isoformat()
+    week_start = _get_monday(week if week else today)
+    db         = get_db()
+    allowed_ids = _get_subordinate_user_ids(db, current_user)
+
+    plans = []
+    for doc in db.collection("weekly_plans").where("week_start", "==", week_start).stream():
+        d = doc.to_dict()
+        if allowed_ids is not None and d.get("user_id", "") not in allowed_ids:
+            continue
+        plans.append({"id": doc.id, **d})
+    plans.sort(key=lambda p: (p.get("department", ""), p.get("user_name", "")))
+
+    week_dates = _get_week_dates(week_start)
+    rows = []
+    for plan in plans:
+        days = plan.get("days", {})
+        for date_str in week_dates:
+            for ti, task in enumerate(days.get(date_str, []), 1):
+                rows.append({
+                    "user_id":    plan.get("user_id", ""),
+                    "user_name":  plan.get("user_name", ""),
+                    "department": plan.get("department", ""),
+                    "date_str":   date_str,
+                    "task_num":   ti,
+                    "title":      task.get("title", ""),
+                    "goal":       task.get("goal", ""),
+                    "output":     task.get("output", ""),
+                    "kpi_name":   task.get("kpi_name", ""),
+                    "kpi_target": task.get("kpi_target", ""),
+                    "approved":   task.get("approved", False),
+                    "approved_by": task.get("approved_by", ""),
+                })
+
+    s = date_mod.fromisoformat(week_dates[0])
+    e = date_mod.fromisoformat(week_dates[5])
+    title = (f"แผนงานรายสัปดาห์  {s.day} {_TH_MON_SHORT[s.month]}"
+             f" — {e.day} {_TH_MON_SHORT[e.month]} {e.year + 543}")
+
+    output = _build_plans_wb(rows, title, has_week_col=False)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="plans_weekly_{week_start}.xlsx"'},
+    )
+
+
+# ─────────────────────────────────────────────────────────────────
+# GET /api/plans/export/monthly  — ส่งออก Excel แผนงานรายเดือน
+# ─────────────────────────────────────────────────────────────────
+@router.get("/export/monthly")
+def export_plans_monthly(
+    month: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Export แผนงานของลูกน้องทั้งหมดในเดือนที่ระบุ (YYYY-MM) เป็น Excel (.xlsx)"""
+    level = current_user.get("level", 0)
+    role  = current_user.get("role", "").lower()
+    if level == 0 and 'admin' not in role:
+        raise HTTPException(status_code=403, detail="สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น")
+
+    if not month or len(month) < 7:
+        raise HTTPException(status_code=422, detail="month ต้องอยู่ในรูปแบบ YYYY-MM")
+
+    db          = get_db()
+    allowed_ids = _get_subordinate_user_ids(db, current_user)
+    mondays     = _get_months_mondays(month)
+
+    plans_by_week: dict[str, list] = {}
+    for week_start in mondays:
+        week_plans = []
+        for doc in db.collection("weekly_plans").where("week_start", "==", week_start).stream():
+            d = doc.to_dict()
+            if allowed_ids is not None and d.get("user_id", "") not in allowed_ids:
+                continue
+            week_plans.append({"id": doc.id, **d})
+        plans_by_week[week_start] = week_plans
+
+    # รวบรวม employees เรียงตาม department → user_name
+    emp_map: dict[str, dict] = {}
+    for week_plans in plans_by_week.values():
+        for p in week_plans:
+            uid = p.get("user_id", "")
+            if uid and uid not in emp_map:
+                emp_map[uid] = {"user_name": p.get("user_name", ""),
+                                "department": p.get("department", "")}
+    sorted_emps = sorted(emp_map.items(),
+                         key=lambda x: (x[1].get("department", ""), x[1].get("user_name", "")))
+
+    rows = []
+    for uid, emp_info in sorted_emps:
+        for wi, week_start in enumerate(mondays, 1):
+            plan = next((p for p in plans_by_week.get(week_start, [])
+                         if p.get("user_id") == uid), None)
+            if not plan:
+                continue
+            days = plan.get("days", {})
+            for date_str in _get_week_dates(week_start):
+                for ti, task in enumerate(days.get(date_str, []), 1):
+                    rows.append({
+                        "user_id":    uid,
+                        "user_name":  emp_info["user_name"],
+                        "department": emp_info["department"],
+                        "week_label": f"สัปดาห์ที่ {wi}",
+                        "date_str":   date_str,
+                        "task_num":   ti,
+                        "title":      task.get("title", ""),
+                        "goal":       task.get("goal", ""),
+                        "output":     task.get("output", ""),
+                        "kpi_name":   task.get("kpi_name", ""),
+                        "kpi_target": task.get("kpi_target", ""),
+                        "approved":   task.get("approved", False),
+                        "approved_by": task.get("approved_by", ""),
+                    })
+
+    year_val, mon_val = int(month[:4]), int(month[5:7])
+    title = f"แผนงานรายเดือน  {_TH_MON_LONG[mon_val]} {year_val + 543}"
+
+    output = _build_plans_wb(rows, title, has_week_col=True)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="plans_monthly_{month}.xlsx"'},
+    )

@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8000`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8000/docs`  
-**Version:** 3.5.0
+**Version:** 3.5.2
 
 ---
 
@@ -16,6 +16,10 @@ Authorization: Bearer <jwt_token>
 
 Token ได้มาจาก `POST /api/login` และมีอายุ **8 ชั่วโมง**  
 `header.js` ของ Frontend จะแนบ Token นี้ให้อัตโนมัติทุก Request ที่ขึ้นต้นด้วย `/api/`
+
+**Security Notes:**
+- รหัสผ่านในระบบถูกเข้ารหัสด้วย **BCrypt (rounds=12)** (v3.4.1+)
+- ระบบรองรับ Lazy Migration สำหรับรหัสผ่านเดิมที่ยังเป็นข้อความปกติ โดยจะถูกเข้ารหัสอัตโนมัติเมื่อมีการ Login สำเร็จ 
 
 **JWT Payload:**
 ```json
@@ -836,7 +840,7 @@ GET /api/admin/reports/export?date=2026-04-15
 | `date` | `YYYY-MM-DD` | บังคับ | วันที่ที่ต้องการดึงงาน |
 
 **Response 200** — `PlanTask[]`  
-> คืนเฉพาะงานที่ `approved=true` หรือ `approved_by=""` (pending) — ซ่อนงานที่ถูกไม่อนุมัติ
+> คืนเฉพาะงานที่ **`approved=true`** เท่านั้น (v3.5.1+) — งานที่รออนุมัติหรือถูกปฏิเสธจะไม่ถูกส่งกลับมาเพื่อความถูกต้องของข้อมูลในรายงาน
 
 ---
 
@@ -900,6 +904,33 @@ Admin/Supervisor ดูแผนของลูกน้องทุกคนส
 |------|--------|
 | 403 | สิทธิ์การเข้าถึงสำหรับผู้ดูแลระบบเท่านั้น |
 | 404 | ไม่พบแผนงานที่ระบุ / ไม่พบงานที่ระบุในแผนงาน |
+| 409 | Conflict: ไม่สามารถยกเลิกการอนุมัติงานที่ถูกนำไปลงรายงาน (In-progress) แล้วได้ |
+
+---
+
+#### 30. GET `/api/plans/export/weekly`
+
+ดาวน์โหลดไฟล์ Excel แผนงานรายสัปดาห์ของลูกน้องทุกคนในสายบังคับบัญชา (`.xlsx`)
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `week` | `YYYY-MM-DD` | บังคับ | วันจันทร์ต้นสัปดาห์ที่ต้องการ Export |
+
+**Response** — `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
+
+---
+
+#### 31. GET `/api/plans/export/monthly`
+
+ดาวน์โหลดไฟล์ Excel แผนงานรายเดือนของลูกน้องทุกคนในสายบังคับบัญชา (`.xlsx`)
+
+**Query Parameters**
+| Param | Type | Required | Description |
+|-------|------|----------|-------------|
+| `month` | `YYYY-MM` | บังคับ | เดือนที่ต้องการ Export (จะรวมทุกสัปดาห์ที่มีวันคาบเกี่ยวในเดือนนั้น) |
+
+**Response** — `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`
 
 ---
 

@@ -2212,6 +2212,63 @@ async function approveTask(planId, date, taskId, approved, btn) {
   }
 }
 
+/* ── ส่งออก Excel แผนงาน (Plans Export) ── */
+//? ส่งออกแผนงานของสัปดาห์ที่กำลังดูอยู่เป็นไฟล์ Excel
+async function exportPlansWeekly() {
+  const btn = document.getElementById('btn-export-plans-week');
+  const origText = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ld-spin" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px"></span>กำลังดาวน์โหลด...';
+    }
+    const res = await fetch(`/api/plans/export/weekly?week=${reviewWeekStart}`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `plans_weekly_${reviewWeekStart}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    if (btn) { btn.innerHTML = '✓ ดาวน์โหลดแล้ว'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
+  } catch(e) {
+    alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+
+//? ส่งออกแผนงานทั้งเดือน (เลือกเดือนจาก input #plans-export-month) เป็นไฟล์ Excel
+async function exportPlansMonthly() {
+  const monthEl = document.getElementById('plans-export-month');
+  const month   = (monthEl && monthEl.value) ? monthEl.value : _getDefaultMonth();
+  const btn     = document.getElementById('btn-export-plans-month');
+  const origText = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ld-spin" style="width:13px;height:13px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:5px"></span>กำลังดาวน์โหลด...';
+    }
+    const res = await fetch(`/api/plans/export/monthly?month=${encodeURIComponent(month)}`);
+    if (!res.ok) throw new Error('Export failed');
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `plans_monthly_${month}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    if (btn) { btn.innerHTML = '✓ ดาวน์โหลดแล้ว'; setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000); }
+  } catch(e) {
+    alert('ไม่สามารถดาวน์โหลดไฟล์ได้');
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
+  }
+}
+
 
 /* ══════════════════════════════════════════════════════
    ระบบพลังงาน/ค่าน้ำมัน (Admin Fuel View)
