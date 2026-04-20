@@ -46,36 +46,6 @@
 ---
 
 ## 📁 โครงสร้างโปรเจกต์ (Project Structure)
-(ดูรายละเอียดที่ [CONTEXT.md](CONTEXT.md))
-
----
-
-## 🛠 เทคโนโลยีที่ใช้ (Tech Stack)
-- **Backend:** FastAPI (Python 3.10+) + Firebase Firestore (NoSQL)
-- **Frontend:** Vanilla JS, Vanilla CSS, HTML5 (Clean Layout)
-- **Auth:** JWT (HS256) + BCrypt (Password Hashing)
-
----
-
-## 🔌 API Endpoints
-ดูรายละเอียด API ทั้งหมดได้ที่ [API_DOCS.md](API_DOCS.md)
-
----
-
-## 📚 เอกสารที่เกี่ยวข้อง
-| เอกสาร | คำอธิบาย |
-|--------|---------|
-| [USER_MANUAL.md](USER_MANUAL.md) | คู่มือการใช้งานสำหรับพนักงาน หัวหน้างาน และผู้ดูแลระบบ |
-| [API_DOCS.md](API_DOCS.md) | เอกสาร API ทุก Endpoint พร้อมตัวอย่าง Request/Response |
-| [CONTEXT.md](CONTEXT.md) | บริบทโปรเจกต์ สถาปัตยกรรม และ Changelog สำหรับนักพัฒนา |
-
----
-
-## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.6.1
-- **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
-- **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก
- รเจกต์ (Project Structure)
 
 ```text
 wfh/
@@ -149,22 +119,37 @@ wfh/
 
 ## 📦 วิธีการติดตั้งและใช้งาน (Installation)
 
-1. **ติดตั้ง Dependencies:**
+> **🛡️ บอดี้การ์ด Linux (PEP 668):** ตามนโยบายใหม่ของระบบปฏิบัติการ (โดยเฉพาะ Linux) ไม่อนุญาตให้ใช้ `pip` ติดตั้ง Library มั่วซั่วทับกับของระบบ (System Python) เพราะถ้า Library บางตัวไปตีกัน ระบบอาจจะพังจนบูตไม่ขึ้น หรือเปิดโปรแกรมพื้นฐานไม่ได้
+> **วิธีแก้ที่ถูกต้อง (The Solutions) คือการสร้าง Virtual Environment** เป็นการสร้าง "ห้องส่วนตัว" ให้โปรเจกต์ จะลงอะไรก็ไม่ตีกับใคร
+
+1. **สร้างและเปิดใช้งาน Virtual Environment (ห้องส่วนตัว):**
+   ```bash
+   # สร้างห้อง: สร้าง Virtual Environment สำหรับโปรเจกต์ (ทำแค่ครั้งแรก)
+   python3 -m venv venv
+
+   # เข้าไปในห้อง: เปิดใช้งาน Virtual Environment (ทำทุกครั้งก่อนรันเซิร์ฟเวอร์ หรือติดตั้ง Library)
+   source venv/bin/activate
+   
+   # สำหรับผู้ใช้ Windows ใช้คำสั่งนี้แทน:
+   # venv\Scripts\activate
+   ```
+
+2. **ติดตั้ง Dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-2. **ตั้งค่า Firebase:**
+3. **ตั้งค่า Firebase:**
    นำไฟล์ Service Account JSON มาวางใน root directory และตรวจสอบชื่อไฟล์ใน `database.py`
 
-3. **ตั้งค่า Secret Key (Production):**
+4. **ตั้งค่า Secret Key (Production):**
    สร้างไฟล์ `.env` ใน root directory:
    ```
    JWT_SECRET_KEY=<random_string_32+_chars>
    ```
    สร้าง key ด้วย: `python -c "import secrets; print(secrets.token_hex(32))"`
 
-4. **รันเซิร์ฟเวอร์:**
+5. **รันเซิร์ฟเวอร์:**
    ```bash
    python main.py
    ```
@@ -176,7 +161,7 @@ wfh/
    ```
    > Default: `0.0.0.0:8000` (รับทุก IP ที่เข้ามา)
 
-5. **เข้าใช้งาน:**
+6. **เข้าใช้งาน:**
    เปิดเบราว์เซอร์ไปที่ [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
 ---
@@ -226,6 +211,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.5.2
+- **เวอร์ชัน:** 3.6.1
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก

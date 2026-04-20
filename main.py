@@ -14,6 +14,13 @@ import os
 import bcrypt
 from contextlib import asynccontextmanager
 from database import get_db
+from ldap3 import Server as LdapServer, Connection, ALL as LDAP_ALL
+from ldap3.core.exceptions import LDAPBindError, LDAPException
+
+#? ค่าคงที่สำหรับ Active Directory
+AD_SERVER_IP = os.getenv("AD_SERVER_IP", "10.60.60.1")
+AD_DOMAIN_PREFIX = os.getenv("AD_DOMAIN_PREFIX", "RMUTL")
+AD_DOMAIN_SUFFIX = os.getenv("AD_DOMAIN_SUFFIX", "rmutl.ac.th")
 
 
 #? ตรวจสอบว่ารหัสผ่านนี้ผ่านการ hash ด้วย bcrypt แล้วหรือยัง
@@ -33,6 +40,28 @@ def _verify_password(plain: str, stored: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), stored.encode("utf-8"))
     #? รหัสผ่านยังเป็น plaintext (ยังไม่ migrate) — เปรียบเทียบตรงๆ
     return plain == stored
+
+
+#? ยืนยันตัวตนผ่าน Active Directory ด้วย ldap3
+#? คืนค่า (authenticated, server_available):
+#?   (True,  True)  → AD ยืนยันสำเร็จ
+#?   (False, True)  → AD พร้อมใช้งาน แต่รหัสผ่านผิด
+#?   (False, False) → เชื่อมต่อ AD ไม่ได้ — ให้ fallback ตรวจ bcrypt แทน
+def _authenticate_ad(username: str, password: str) -> tuple[bool, bool]:
+    try:
+        server = LdapServer(AD_SERVER_IP, get_info=LDAP_ALL, connect_timeout=3)
+        conn = Connection(server, user=f'{AD_DOMAIN_PREFIX}\\{username}', password=password, auto_bind=True)
+        conn.unbind()
+        return True, True
+    except LDAPBindError:
+        #! Bind ล้มเหลว — username/password ผิด (server ตอบสนองแต่ปฏิเสธ)
+        return False, True
+    except LDAPException:
+        #! ไม่สามารถเชื่อมต่อ AD ได้ (timeout, network error)
+        return False, False
+    except Exception:
+        return False, False
+
 
 #? กำหนดสิ่งที่จะให้ระบบทำทันทีที่เริ่มรันหรือปิดตัวลง (Lifespan Events)
 @asynccontextmanager
@@ -77,46 +106,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#? API Endpoint สำหรับการเข้าสู่ระบบ (Login)
+#? API Endpoint สำหรับการเข้าสู่ระบบ (Login) — ยืนยันตัวตนผ่าน AD เป็นหลัก / fallback bcrypt เมื่อ AD ล่ม
 @app.post("/api/login")
 def login(req: LoginRequest):
-    #? ดึงอินสแตนซ์ของฐานข้อมูล Firestore
     db = get_db()
-    users_ref = db.collection("users")
 
-    #? รองรับการ Login ด้วย username ย่อ (ไม่มี @domain) โดยค้นหา email ที่ขึ้นต้นด้วย username นั้น
-    if "@" not in req.email:
-        username = req.email.strip().lower()
-        doc = None
-        #? ค้นหา email field ที่อยู่ในช่วง username@ ถึง username + ตัวอักษรหลัง @
-        for d in users_ref \
-                .where("email", ">=", username + "@") \
-                .where("email", "<", username + "A") \
-                .limit(1).stream():
-            doc = d
-        if doc is None:
-            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+    #? Normalize: ตัด @domain ออก เพื่อให้ได้ username สั้น ไม่ว่าผู้ใช้จะพิมพ์แบบไหน
+    raw_input = req.email.strip()
+    if "@" in raw_input:
+        username = raw_input.split("@")[0].lower()
     else:
-        doc = users_ref.document(req.email).get()
-        if not doc.exists:
-            #! หากไม่พบ Email ในระบบ จะส่ง Error 401 กลับไป (ไม่ควรบอกว่าอีเมลผิดหรือรหัสผ่านผิดเพื่อความปลอดภัย)
-            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+        username = raw_input.lower()
+    full_email = f"{username}@{AD_DOMAIN_SUFFIX}"
 
-    user_data = doc.to_dict()
-    stored_pw = user_data.get("password", "")
+    #? ลอง authenticate ผ่าน Active Directory ก่อน
+    ad_ok, ad_available = _authenticate_ad(username, req.password)
 
-    if not _verify_password(req.password, stored_pw):
+    if ad_available and not ad_ok:
+        #! AD พร้อมใช้งาน แต่ปฏิเสธ credentials — ไม่ fallback
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 
-    #? Lazy Migration — ถ้ารหัสผ่านยังเป็น plaintext ให้ hash แล้วเขียนทับลง Firestore ทันที
-    if not _is_hashed(stored_pw):
-        db.collection("users").document(doc.id).update({
-            "password": _hash_password(req.password)
-        })
+    #? ดึงข้อมูล user จาก Firestore (ต้องมีอยู่จึงจะ login ได้)
+    user_ref = db.collection("users").document(full_email)
+    user_snap = user_ref.get()
+    if not user_snap.exists:
+        raise HTTPException(status_code=401, detail="ไม่พบบัญชีผู้ใช้ในระบบ")
 
-    #? ใช้ doc.id (Document ID = email) เป็น sub เพื่อให้ตรงกันทั้งกรณีกรอกเต็มและ username ย่อ
+    user_data = user_snap.to_dict()
+
+    if not ad_available:
+        #? AD ล่ม — fallback ตรวจสอบรหัสผ่านจาก Firestore แทน
+        stored_pw = user_data.get("password", "")
+        if not _verify_password(req.password, stored_pw):
+            raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
+        #? Lazy Migration — ถ้ารหัสผ่านยังเป็น plaintext ให้ hash แล้วเขียนทับลง Firestore ทันที
+        if not _is_hashed(stored_pw):
+            user_ref.update({"password": _hash_password(req.password)})
+
+    #? สร้าง JWT token พร้อม payload ข้อมูล user
     token = create_access_token({
-        "sub": doc.id,
+        "sub": full_email,
         "user_id": user_data.get("personal_id", ""),
         "name": f"{user_data.get('firstname', '')} {user_data.get('lastname', '')}".strip(),
         "role": user_data.get("role", "employee"),
@@ -126,11 +155,10 @@ def login(req: LoginRequest):
         "agency": user_data.get("agency", ""),
     })
 
-    #? คืนค่า token และข้อมูล user พร้อม email จริงจาก Firestore (doc.id)
     return {
         "status": "success",
         "token": token,
-        "user": {**user_data, "email": doc.id}
+        "user": {**user_data, "email": full_email}
     }
 
 #? API สำหรับดึงข้อมูลของผู้ใช้งานที่ Login อยู่ ณ ปัจจุบัน
