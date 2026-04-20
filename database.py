@@ -3,9 +3,10 @@ from firebase_admin import credentials, firestore
 
 import os
 
-#? กำหนดเส้นทางไปยังไฟล์ JSON ที่เก็บสิทธิ์การเข้าถึง (Service Account Key) ของ Firebase
+#? อ่านชื่อไฟล์ Credential จาก ENV — fallback เป็นชื่อไฟล์เดิมถ้าไม่ได้ตั้งค่า
 #! คำเตือน: ไฟล์ .json นี้เป็นข้อมูลลับสูงสุด (Credential) ห้ามแชร์หรืออัปโหลดขึ้น Public Repository โดยเด็ดขาด
-CREDENTIAL_PATH = os.path.join(os.path.dirname(__file__), "work-from-home-75108-firebase-adminsdk-fbsvc-73f34e61a2.json")
+_credential_file = os.getenv("FIREBASE_CREDENTIAL_FILE", "work-from-home-75108-firebase-adminsdk-fbsvc-73f34e61a2.json")
+CREDENTIAL_PATH = os.path.join(os.path.dirname(__file__), _credential_file)
 
 #? ฟังก์ชันสำหรับการดึงอินสแตนซ์ของฐานข้อมูล Firestore (Get Database Client)
 def get_db():
