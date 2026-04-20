@@ -18,7 +18,7 @@ from ldap3 import Server as LdapServer, Connection, ALL as LDAP_ALL
 from ldap3.core.exceptions import LDAPBindError, LDAPException
 
 #? ค่าคงที่สำหรับ Active Directory
-AD_SERVER_IP = os.getenv("AD_SERVER_IP", "10.60.60.1")
+AD_SERVER_IP = os.getenv("AD_SERVER_IP")          #! ต้องตั้ง ENV — ห้าม hardcode IP ภายใน
 AD_DOMAIN_PREFIX = os.getenv("AD_DOMAIN_PREFIX", "RMUTL")
 AD_DOMAIN_SUFFIX = os.getenv("AD_DOMAIN_SUFFIX", "rmutl.ac.th")
 

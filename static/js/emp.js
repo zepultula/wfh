@@ -1192,7 +1192,7 @@ function renderPlanTasks(planData, weekStart) {
 
   //? ปุ่ม + เพิ่มงาน (global)
   const addBtn = document.createElement('button');
-  addBtn.className = 'nav-btn nav-btn-back';
+  addBtn.className = 'nav-btn nav-btn-blue';
   addBtn.style.cssText = 'margin-top:10px;font-size:12px';
   addBtn.textContent = '+ เพิ่มงาน';
   addBtn.onclick = () => addPlanTaskRow(weekDates);
