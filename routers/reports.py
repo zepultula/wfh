@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Body, Depends
+from fastapi import APIRouter, HTTPException, Body, Depends, Request
 from database import get_db
 from models import ReportCreate, ReportOut, CommentCreate, CommentModel, TaskModel
 from auth import get_current_user
-from typing import List
+from activity_logger import log_activity, LogAction
+from typing import List, Optional
 import uuid
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -14,7 +15,7 @@ bz_tz = ZoneInfo('Asia/Bangkok')
 
 #? API สำหรับส่งรายงานประจำวัน (หากส่งซ้ำในวันเดียวกันจะถือเป็นการแก้ไขรายงานเดิม)
 @router.post("/", response_model=ReportOut)
-def create_report(report: ReportCreate):
+def create_report(report: ReportCreate, request: Request, current_user: dict = Depends(get_current_user)):
     db = get_db()
 
     now = datetime.now(bz_tz)
@@ -43,6 +44,10 @@ def create_report(report: ReportCreate):
         report_dict['comments'] = []
 
     db.collection('reports').document(report_id).set(report_dict)
+
+    log_activity(db, action=LogAction.REPORT_SUBMIT, request=request, user=current_user,
+                 resource_id=report_id, resource_type="report",
+                 details={"date": date_str, "work_mode": report.work_mode, "progress": report.progress})
 
     return report_dict
 
@@ -104,15 +109,26 @@ def get_reports(date: str = None, current_user: dict = Depends(get_current_user)
     return reports
 
 @router.get("/{report_id}", response_model=ReportOut)
-def get_report(report_id: str):
+def get_report(report_id: str, request: Request, current_user: dict = Depends(get_current_user)):
     db = get_db()
     doc = db.collection('reports').document(report_id).get()
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Report not found")
+
+    #? log เฉพาะเมื่อ supervisor (level >= 1) เปิดดูรายงานของพนักงาน
+    level = current_user.get("level", 0)
+    if level >= 1:
+        log_activity(db, action=LogAction.REPORT_VIEW, request=request, user=current_user,
+                     resource_id=report_id, resource_type="report")
+
     return doc.to_dict()
 
 @router.patch("/{report_id}/tasks")
-def update_tasks(report_id: str, tasks: List[TaskModel] = Body(...)):
+def update_tasks(report_id: str, tasks: List[TaskModel] = Body(...),
+                 source: Optional[str] = None,
+                 request: Request = None,
+                 current_user: dict = Depends(get_current_user)):
+    #? source เป็น query param — ส่ง ?source=manual เมื่อ user กด save เอง (ไม่ใช่ auto-save)
     db = get_db()
     report_ref = db.collection('reports').document(report_id)
     doc = report_ref.get()
@@ -121,11 +137,18 @@ def update_tasks(report_id: str, tasks: List[TaskModel] = Body(...)):
     tasks_data = [t.model_dump() for t in tasks]
     #? ทำการอัปเดตเฉพาะฟิลด์ 'tasks' ในเอกสารรายงานเดิม
     report_ref.update({'tasks': tasks_data})
+
+    #? log เฉพาะ manual save — ไม่ log auto-save ทุก 30 วินาที
+    if source == "manual":
+        log_activity(db, action=LogAction.REPORT_TASK_UPDATE, request=request, user=current_user,
+                     resource_id=report_id, resource_type="report",
+                     details={"task_count": len(tasks_data)})
+
     return {"success": True}
 
 #? เพิ่มคอมเมนท์ลงในรายงาน
 @router.post("/{report_id}/comments", response_model=CommentModel)
-def add_comment(report_id: str, comment: CommentCreate):
+def add_comment(report_id: str, comment: CommentCreate, request: Request, current_user: dict = Depends(get_current_user)):
     db = get_db()
     report_ref = db.collection('reports').document(report_id)
     doc = report_ref.get()
@@ -148,5 +171,9 @@ def add_comment(report_id: str, comment: CommentCreate):
     comments.append(comment_dict)
 
     report_ref.update({'comments': comments})
+
+    log_activity(db, action=LogAction.REPORT_COMMENT_ADD, request=request, user=current_user,
+                 resource_id=report_id, resource_type="report",
+                 details={"tag": comment.tag or "", "author": comment.author_name or ""})
 
     return comment_dict

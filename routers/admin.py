@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Request
 from fastapi.responses import StreamingResponse
 from database import get_db
 from auth import decode_access_token
+from activity_logger import log_activity, LogAction
 from pydantic import BaseModel
 from typing import Optional, List
 import re
@@ -34,7 +35,7 @@ def _require_super_admin(authorization: str):
     role = payload.get("role", "").lower()
     if not (level == 9 or 'admin' in role):
         raise HTTPException(status_code=403, detail="Forbidden: super admin only")
-    return get_db()
+    return get_db(), payload
 
 
 #? ตรวจสอบสิทธิ์ว่ามีสิทธิ์ระดับ Admin หรือ Supervisor (Level >= 1) หรือไม่
@@ -106,7 +107,7 @@ class UserUpdate(BaseModel):
 #? ดึงรายชื่อพนักงานทั้งหมดในระบบ (เฉพาะ Super Admin)
 @router.get("/users")
 def list_all_users(authorization: str = Header(None)):
-    db = _require_super_admin(authorization)
+    db, _ = _require_super_admin(authorization)
     result = []
     for doc in db.collection("users").stream():
         u = doc.to_dict()
@@ -119,8 +120,8 @@ def list_all_users(authorization: str = Header(None)):
 #? สร้างบัญชีผู้ใช้งานใหม่
 #! ต้องตรวจสอบซ้ำว่า Email ซ้ำในระบบหรือไม่ก่อนสร้าง
 @router.post("/users", status_code=201)
-def create_user(user: UserCreate, authorization: str = Header(None)):
-    db = _require_super_admin(authorization)
+def create_user(user: UserCreate, request: Request, authorization: str = Header(None)):
+    db, actor = _require_super_admin(authorization)
     email = user.email
     if db.collection("users").document(email).get().exists:
         raise HTTPException(status_code=409, detail="Email นี้มีอยู่ในระบบแล้ว")
@@ -128,12 +129,15 @@ def create_user(user: UserCreate, authorization: str = Header(None)):
     #? Hash รหัสผ่านก่อนบันทึก — ไม่เก็บ plaintext ลง Firestore เด็ดขาด
     user_dict["password"] = _hash_password(user_dict["password"])
     db.collection("users").document(email).set(user_dict)
+    log_activity(db, action=LogAction.USER_CREATE, request=request, user=actor,
+                 resource_id=email, resource_type="user",
+                 details={"email": email, "level": user.level, "department": user.department})
     return {"success": True, "email": email}
 
 
 @router.put("/users/{email:path}")
-def update_user(email: str, update: UserUpdate, authorization: str = Header(None)):
-    db = _require_super_admin(authorization)
+def update_user(email: str, update: UserUpdate, request: Request, authorization: str = Header(None)):
+    db, actor = _require_super_admin(authorization)
     doc_ref = db.collection("users").document(email)
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
@@ -144,16 +148,27 @@ def update_user(email: str, update: UserUpdate, authorization: str = Header(None
     if "password" in update_data and update_data["password"]:
         update_data["password"] = _hash_password(update_data["password"])
     doc_ref.update(update_data)
+    #? แยก log: toggle ignore vs แก้ไขข้อมูลทั่วไป
+    if list(update_data.keys()) == ["ignore"]:
+        log_activity(db, action=LogAction.USER_TOGGLE, request=request, user=actor,
+                     resource_id=email, resource_type="user",
+                     details={"ignore": update_data["ignore"]})
+    else:
+        log_activity(db, action=LogAction.USER_UPDATE, request=request, user=actor,
+                     resource_id=email, resource_type="user",
+                     details={"updated_fields": [k for k in update_data if k != "password"]})
     return {"success": True}
 
 
 @router.delete("/users/{email:path}")
-def delete_user(email: str, authorization: str = Header(None)):
-    db = _require_super_admin(authorization)
+def delete_user(email: str, request: Request, authorization: str = Header(None)):
+    db, actor = _require_super_admin(authorization)
     doc_ref = db.collection("users").document(email)
     if not doc_ref.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
     doc_ref.delete()
+    log_activity(db, action=LogAction.USER_DELETE, request=request, user=actor,
+                 resource_id=email, resource_type="user", details={"email": email})
     return {"success": True}
 
 
@@ -165,7 +180,7 @@ class EvaluationUpdate(BaseModel):
 @router.get("/evaluations")
 def list_evaluations(authorization: str = Header(None)):
     """Get all users with their evaluators (join from evaluations collection)"""
-    db = _require_super_admin(authorization)
+    db, _ = _require_super_admin(authorization)
 
     users_by_pid = {}
     for doc in db.collection("users").stream():
@@ -217,9 +232,9 @@ def list_evaluations(authorization: str = Header(None)):
 
 
 @router.put("/evaluations/{target_id}")
-def update_evaluation(target_id: str, update: EvaluationUpdate, authorization: str = Header(None)):
+def update_evaluation(target_id: str, update: EvaluationUpdate, request: Request, authorization: str = Header(None)):
     """Create/update evaluators for a target (replaces the full list)"""
-    db = _require_super_admin(authorization)
+    db, actor = _require_super_admin(authorization)
     doc_ref = db.collection("evaluations").document(target_id)
     evaluators = [{"evaluator_id": pid, "order": i + 1} for i, pid in enumerate(update.evaluator_ids)]
     doc_ref.set({
@@ -227,13 +242,16 @@ def update_evaluation(target_id: str, update: EvaluationUpdate, authorization: s
         "evaluators": evaluators,
         "evaluator_ids": update.evaluator_ids,
     })
+    log_activity(db, action=LogAction.EVALUATION_UPDATE, request=request, user=actor,
+                 resource_id=target_id, resource_type="evaluation",
+                 details={"evaluator_count": len(update.evaluator_ids), "evaluator_ids": update.evaluator_ids})
     return {"success": True}
 
 
 @router.post("/migrate/ignore")
 def migrate_ignore(authorization: str = Header(None)):
     """เพิ่ม ignore=0 ให้ผู้ใช้ที่ยังไม่มี field นี้"""
-    db = _require_super_admin(authorization)
+    db, _ = _require_super_admin(authorization)
     count = 0
     for doc in db.collection("users").stream():
         if 'ignore' not in doc.to_dict():
@@ -245,7 +263,7 @@ def migrate_ignore(authorization: str = Header(None)):
 @router.post("/migrate/evaluator-ids")
 def migrate_evaluator_ids(authorization: str = Header(None)):
     """เพิ่ม evaluator_ids (flat array) ให้ evaluation documents ที่ยังไม่มี field นี้"""
-    db = _require_super_admin(authorization)
+    db, _ = _require_super_admin(authorization)
     count = 0
     for doc in db.collection("evaluations").stream():
         d = doc.to_dict()
@@ -254,6 +272,51 @@ def migrate_evaluator_ids(authorization: str = Header(None)):
             doc.reference.update({'evaluator_ids': ids})
             count += 1
     return {"updated": count}
+
+
+# ── Activity Logs ────────────────────────────────────────────────────────────
+
+@router.get("/logs")
+def get_activity_logs(
+    request: Request,
+    category: Optional[str] = None,
+    user_id: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    authorization: str = Header(None),
+):
+    """ดึง activity logs — super admin เท่านั้น
+    Filter: category, user_id, date_from (YYYY-MM-DD), date_to (YYYY-MM-DD)"""
+    db, _ = _require_super_admin(authorization)
+    if limit > 500:
+        limit = 500
+
+    query = db.collection("activity_logs").order_by("timestamp", direction="DESCENDING")
+
+    #? ดึงมาก่อนแล้ว filter ใน Python เพราะ Firestore ไม่รองรับ range query บนหลาย field พร้อมกัน
+    all_docs = list(query.stream())
+
+    results = []
+    for doc in all_docs:
+        d = doc.to_dict()
+        ts = d.get("timestamp", "")
+
+        if category and d.get("category") != category:
+            continue
+        if user_id and d.get("user_id") != user_id:
+            continue
+        if date_from and ts[:10] < date_from:
+            continue
+        if date_to and ts[:10] > date_to:
+            continue
+
+        results.append({"id": doc.id, **d})
+
+    total = len(results)
+    paginated = results[offset: offset + limit]
+    return {"total": total, "logs": paginated}
 
 
 # ── Monthly Stats ────────────────────────────────────────────────────────────
@@ -343,17 +406,20 @@ def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
 
 
 @router.get("/stats")
-def get_stats(month: str, authorization: str = Header(None)):
+def get_stats(month: str, request: Request, authorization: str = Header(None)):
     """สถิติรายเดือน — ส่งคืน per-user stats จัดกลุ่มตาม department
     Super admin เห็นทุกคน, supervisor เห็นเฉพาะลูกน้องในสายบังคับบัญชา"""
     db, user_data = _require_any_admin(authorization)
     allowed = _get_visible_user_ids(db, user_data)
-    return _compute_monthly_stats(db, month, allowed)
+    result = _compute_monthly_stats(db, month, allowed)
+    log_activity(db, action=LogAction.STATS_VIEW, request=request, user=user_data,
+                 details={"month": month})
+    return result
 
 
 #? Export สถิติรายงานตัวประจำเดือนเป็นไฟล์ Excel (.xlsx)
 @router.get("/stats/export")
-def export_stats(month: str, authorization: str = Header(None)):
+def export_stats(month: str, request: Request, authorization: str = Header(None)):
     """Export สถิติรายเดือนเป็นไฟล์ Excel (.xlsx)
     Super admin ได้ทุกคน, supervisor ได้เฉพาะลูกน้อง"""
     import io
@@ -363,6 +429,8 @@ def export_stats(month: str, authorization: str = Header(None)):
     db, user_data = _require_any_admin(authorization)
     allowed = _get_visible_user_ids(db, user_data)
     data = _compute_monthly_stats(db, month, allowed)
+    log_activity(db, action=LogAction.STATS_EXPORT, request=request, user=user_data,
+                 details={"month": month})
 
     # Thai month names
     th_months = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
@@ -500,7 +568,7 @@ def export_stats(month: str, authorization: str = Header(None)):
 
 #? Export รายละเอียดรายงานรายวันของทุกคน (หรือลูกน้อง) เป็นไฟล์ Excel
 @router.get("/reports/export")
-def export_daily_reports(date: str, authorization: str = Header(None)):
+def export_daily_reports(date: str, request: Request, authorization: str = Header(None)):
     """Export รายงานประจำวันเป็นไฟล์ Excel (.xlsx) — admin level 1+, กรองตามสิทธิ์
     date = 'YYYY-MM-DD'"""
     import io
@@ -512,6 +580,8 @@ def export_daily_reports(date: str, authorization: str = Header(None)):
 
     db, user_data = _require_any_admin(authorization)
     allowed = _get_visible_user_ids(db, user_data)
+    log_activity(db, action=LogAction.REPORT_EXPORT, request=request, user=user_data,
+                 details={"date": date})
 
     # Fetch all active users
     users_map = {}

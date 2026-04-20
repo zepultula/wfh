@@ -14,6 +14,7 @@ import os
 import bcrypt
 from contextlib import asynccontextmanager
 from database import get_db
+from activity_logger import log_activity, LogAction
 from ldap3 import Server as LdapServer, Connection, ALL as LDAP_ALL
 from ldap3.core.exceptions import LDAPBindError, LDAPException
 
@@ -108,7 +109,7 @@ app.add_middleware(
 
 #? API Endpoint สำหรับการเข้าสู่ระบบ (Login) — ยืนยันตัวตนผ่าน AD เป็นหลัก / fallback bcrypt เมื่อ AD ล่ม
 @app.post("/api/login")
-def login(req: LoginRequest):
+def login(req: LoginRequest, request: Request):
     db = get_db()
 
     #? Normalize: ตัด @domain ออก เพื่อให้ได้ username สั้น ไม่ว่าผู้ใช้จะพิมพ์แบบไหน
@@ -124,12 +125,16 @@ def login(req: LoginRequest):
 
     if ad_available and not ad_ok:
         #! AD พร้อมใช้งาน แต่ปฏิเสธ credentials — ไม่ fallback
+        log_activity(db, action=LogAction.LOGIN_FAIL, request=request,
+                     user_id=username, details={"email": full_email, "reason": "AD rejected"}, success=False)
         raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
 
     #? ดึงข้อมูล user จาก Firestore (ต้องมีอยู่จึงจะ login ได้)
     user_ref = db.collection("users").document(full_email)
     user_snap = user_ref.get()
     if not user_snap.exists:
+        log_activity(db, action=LogAction.LOGIN_FAIL, request=request,
+                     user_id=username, details={"email": full_email, "reason": "user not found"}, success=False)
         raise HTTPException(status_code=401, detail="ไม่พบบัญชีผู้ใช้ในระบบ")
 
     user_data = user_snap.to_dict()
@@ -138,6 +143,8 @@ def login(req: LoginRequest):
         #? AD ล่ม — fallback ตรวจสอบรหัสผ่านจาก Firestore แทน
         stored_pw = user_data.get("password", "")
         if not _verify_password(req.password, stored_pw):
+            log_activity(db, action=LogAction.LOGIN_FAIL, request=request,
+                         user_id=username, details={"email": full_email, "reason": "wrong password (fallback)"}, success=False)
             raise HTTPException(status_code=401, detail="ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง")
         #? Lazy Migration — ถ้ารหัสผ่านยังเป็น plaintext ให้ hash แล้วเขียนทับลง Firestore ทันที
         if not _is_hashed(stored_pw):
@@ -154,6 +161,13 @@ def login(req: LoginRequest):
         "department": user_data.get("department", ""),
         "agency": user_data.get("agency", ""),
     })
+
+    #? log login สำเร็จ
+    log_activity(db, action=LogAction.LOGIN_SUCCESS, request=request,
+                 user_id=user_data.get("personal_id", ""),
+                 user_name=f"{user_data.get('firstname','')} {user_data.get('lastname','')}".strip(),
+                 user_level=user_data.get("level", 0),
+                 details={"email": full_email, "ad_used": ad_available and ad_ok})
 
     return {
         "status": "success",
@@ -178,29 +192,31 @@ def me(current_user: dict = Depends(get_current_user)):
 
 #? API สำหรับเปลี่ยนรหัสผ่านของผู้ใช้ปัจจุบัน
 @app.post("/api/me/password")
-def update_my_password(req: PasswordUpdateRequest, current_user: dict = Depends(get_current_user)):
+def update_my_password(req: PasswordUpdateRequest, request: Request, current_user: dict = Depends(get_current_user)):
     """Update current user password in Firestore"""
     email = current_user.get("sub")
     if not email:
         raise HTTPException(status_code=401, detail="Unauthorized")
-        
+
     if req.new_password != req.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
-        
+
     if len(req.new_password) < 4:
         raise HTTPException(status_code=400, detail="Password must be at least 4 characters long")
 
     db = get_db()
     user_ref = db.collection("users").document(email)
-    
+
     if not user_ref.get().exists:
         raise HTTPException(status_code=404, detail="User not found")
-        
+
     #? Hash รหัสผ่านใหม่ก่อนบันทึกลง Firestore — ไม่เก็บ plaintext เด็ดขาด
     user_ref.update({
         "password": _hash_password(req.new_password)
     })
-    
+
+    log_activity(db, action=LogAction.PASSWORD_CHANGE, request=request, user=current_user)
+
     return {"status": "success", "message": "Password updated successfully"}
 
 #? API สำหรับดึงรายชื่อผู้ใช้งาน (คัดกรองตามสิทธิ์ Role-Based Access Control)

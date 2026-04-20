@@ -67,6 +67,12 @@ async function initUser() {
     const btnFuel = document.getElementById('btn-fuel-mgmt');
     if (btnFuel) btnFuel.style.display = '';
 
+    //? Super Admin เท่านั้นที่เห็นเมนูบันทึกกิจกรรม
+    const btnLogs = document.getElementById('btn-logs-mgmt');
+    if (btnLogs && (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin'))) {
+      btnLogs.style.display = '';
+    }
+
     //? ตรวจสอบและแสดง Modal ประกาศ (ครั้งเดียวต่อ Login session)
     checkAndShowAnnouncement();
   } catch(e) {
@@ -943,6 +949,10 @@ function showUsersScreen() {
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
+  document.getElementById('sup-ann').style.display = 'none';
+  document.getElementById('sup-plans').style.display = 'none';
+  document.getElementById('sup-fuel').style.display = 'none';
+  document.getElementById('sup-logs').style.display = 'none';
   const el = document.getElementById('sup-users');
   el.style.display = 'block';
   _animateIn(el);
@@ -1297,6 +1307,10 @@ function showEvalsScreen() {
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-users').style.display = 'none';
   document.getElementById('sup-stats').style.display = 'none';
+  document.getElementById('sup-ann').style.display = 'none';
+  document.getElementById('sup-plans').style.display = 'none';
+  document.getElementById('sup-fuel').style.display = 'none';
+  document.getElementById('sup-logs').style.display = 'none';
   const el = document.getElementById('sup-evals');
   el.style.display = 'block';
   _animateIn(el);
@@ -1619,6 +1633,10 @@ function showStatsScreen() {
   document.getElementById('sup-detail').style.display = 'none';
   document.getElementById('sup-users').style.display = 'none';
   document.getElementById('sup-evals').style.display = 'none';
+  document.getElementById('sup-ann').style.display = 'none';
+  document.getElementById('sup-plans').style.display = 'none';
+  document.getElementById('sup-fuel').style.display = 'none';
+  document.getElementById('sup-logs').style.display = 'none';
   const el = document.getElementById('sup-stats');
   el.style.display = 'block';
   _animateIn(el);
@@ -1890,7 +1908,7 @@ async function exportDailyReportExcel() {
 
 //? แสดงหน้าจัดการประกาศ — ซ่อน view อื่นทั้งหมด
 function showAnnScreen() {
-  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats'].forEach(id => {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-plans','sup-fuel','sup-logs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -2073,7 +2091,7 @@ function _formatReviewWeekLabel(mondayStr) {
 
 //? แสดงหน้ารีวิวแผนงาน
 function showPlansScreen() {
-  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann'].forEach(id => {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann','sup-fuel','sup-logs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -2335,7 +2353,7 @@ function _getDefaultMonth() {
 
 //? แสดงหน้าจอพลังงาน ซ่อนทุก section อื่น
 function showFuelScreen() {
-  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann','sup-plans'].forEach(id => {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann','sup-plans','sup-logs'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = 'none';
   });
@@ -2413,4 +2431,133 @@ function renderFuelAdminRows(data) {
   });
   html += '</tbody></table></div>';
   rows.innerHTML = html;
+}
+
+// ── Activity Logs ────────────────────────────────────────────────
+
+const _LOG_CATEGORY_COLORS = {
+  AUTH: '#6366f1', REPORT: '#1059A3', PLAN: '#2E7D32', STATS: '#0891b2',
+  USER_MGMT: '#b45309', EVALUATION: '#7c3aed', ANNOUNCEMENT: '#d97706',
+  FUEL: '#dc2626', FILE: '#64748b',
+};
+const _LOG_PAGE_SIZE = 100;
+let _logCurrentOffset = 0;
+let _logTotal = 0;
+
+//? แสดงหน้าจอ Activity Logs
+function showLogsScreen() {
+  ['sup-list','sup-detail','sup-users','sup-evals','sup-stats','sup-ann','sup-plans','sup-fuel'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  const el = document.getElementById('sup-logs');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive('btn-logs-mgmt');
+  _logCurrentOffset = 0;
+  loadLogs(0);
+}
+
+//? กลับ Dashboard จากหน้า Logs
+function hideLogsScreen() {
+  document.getElementById('sup-logs').style.display = 'none';
+  const el = document.getElementById('sup-list');
+  el.style.display = 'block';
+  _animateIn(el);
+  setNavActive(null);
+}
+
+//? โหลด logs จาก API
+async function loadLogs(offset = 0) {
+  _logCurrentOffset = offset;
+  const tbody = document.getElementById('log-tbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="padding:1.5rem;text-align:center"><div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div></td></tr>';
+
+  const cat    = document.getElementById('log-filter-cat')?.value || '';
+  const from   = document.getElementById('log-filter-from')?.value || '';
+  const to     = document.getElementById('log-filter-to')?.value || '';
+  const uid    = document.getElementById('log-filter-uid')?.value.trim() || '';
+
+  const params = new URLSearchParams({ limit: _LOG_PAGE_SIZE, offset });
+  if (cat)  params.set('category',  cat);
+  if (from) params.set('date_from', from);
+  if (to)   params.set('date_to',   to);
+  if (uid)  params.set('user_id',   uid);
+
+  try {
+    const res = await fetch(`/api/admin/logs?${params}`);
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    _logTotal = data.total || 0;
+
+    const summary = document.getElementById('log-summary');
+    if (summary) summary.textContent = `พบ ${_logTotal.toLocaleString()} รายการ`;
+
+    if (!data.logs || data.logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="7" style="padding:1.5rem;text-align:center;color:var(--color-text-secondary)">ไม่พบข้อมูล</td></tr>';
+      _renderLogPagination();
+      return;
+    }
+
+    tbody.innerHTML = data.logs.map((log, i) => {
+      const bg = i % 2 === 0 ? '#f8fafc' : '#fff';
+      const catColor = _LOG_CATEGORY_COLORS[log.category] || '#64748b';
+      const ts = (log.timestamp || '').replace('T', ' ').slice(0, 19);
+      const success = log.success !== false;
+      const actionBadge = `<span style="background:${catColor};color:#fff;border-radius:9px;padding:2px 8px;font-size:10.5px;font-weight:600;white-space:nowrap">${log.action}</span>`;
+      const statusDot = success
+        ? '<span style="color:#16a34a;font-weight:700">✓</span>'
+        : '<span style="color:#dc2626;font-weight:700">✗</span>';
+
+      //? สร้างข้อความ details ย่อ
+      const det = log.details || {};
+      const detText = Object.entries(det).filter(([k]) => k !== 'password')
+        .map(([k,v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+        .join(' | ');
+
+      const device = log.device_type
+        ? `<span style="font-size:10px">${log.device_type === 'mobile' ? '📱' : log.device_type === 'tablet' ? '🖥' : '💻'} ${log.device_type}</span>`
+        : '-';
+
+      return `<tr style="background:${bg}">
+        <td style="padding:6px 10px;white-space:nowrap;font-size:11.5px">${statusDot} ${ts}</td>
+        <td style="padding:6px 10px;white-space:nowrap">${log.user_name || ''}<br><span style="font-size:10px;color:var(--color-text-secondary)">${log.user_id || ''}</span></td>
+        <td style="padding:6px 10px">${actionBadge}</td>
+        <td style="padding:6px 10px;font-size:11px;color:var(--color-text-secondary);max-width:220px;word-break:break-all">${detText || (log.resource_id || '')}</td>
+        <td style="padding:6px 10px;white-space:nowrap">${device}</td>
+        <td style="padding:6px 10px;white-space:nowrap;font-size:11px">${log.browser || '-'}</td>
+        <td style="padding:6px 10px;font-size:11px;color:var(--color-text-secondary)">${log.ip || '-'}</td>
+      </tr>`;
+    }).join('');
+
+    _renderLogPagination();
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:1rem;color:#dc2626;text-align:center">โหลดไม่สำเร็จ: ${e.message}</td></tr>`;
+  }
+}
+
+//? Render pagination buttons
+function _renderLogPagination() {
+  const container = document.getElementById('log-pagination');
+  if (!container) return;
+  const totalPages = Math.ceil(_logTotal / _LOG_PAGE_SIZE);
+  const currentPage = Math.floor(_logCurrentOffset / _LOG_PAGE_SIZE);
+  if (totalPages <= 1) { container.innerHTML = ''; return; }
+
+  let html = '';
+  const btnStyle = (active) =>
+    `style="padding:4px 10px;border:1px solid #6366f1;border-radius:6px;font-size:12px;cursor:pointer;background:${active ? '#6366f1' : '#fff'};color:${active ? '#fff' : '#6366f1'}"`;
+
+  if (currentPage > 0)
+    html += `<button ${btnStyle(false)} onclick="loadLogs(${(currentPage-1)*_LOG_PAGE_SIZE})">‹ ก่อนหน้า</button>`;
+
+  const start = Math.max(0, currentPage - 2);
+  const end   = Math.min(totalPages - 1, currentPage + 2);
+  for (let p = start; p <= end; p++)
+    html += `<button ${btnStyle(p === currentPage)} onclick="loadLogs(${p*_LOG_PAGE_SIZE})">${p+1}</button>`;
+
+  if (currentPage < totalPages - 1)
+    html += `<button ${btnStyle(false)} onclick="loadLogs(${(currentPage+1)*_LOG_PAGE_SIZE})">ถัดไป ›</button>`;
+
+  container.innerHTML = html;
 }

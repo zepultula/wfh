@@ -1,6 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from database import get_db
 from auth import get_current_user, decode_access_token
+from activity_logger import log_activity, LogAction
 from models import FuelSettings, FuelSettingsUpdate, FuelSettingsWithHistory, FuelSavingsResponse, FuelSavingsWeeklyResponse
 from datetime import date as date_mod, timedelta
 import re
@@ -43,7 +44,7 @@ def get_fuel_settings(current_user: dict = Depends(get_current_user)):
 
 
 @router.put("/settings")
-def save_fuel_settings(settings: FuelSettingsUpdate, current_user: dict = Depends(get_current_user)):
+def save_fuel_settings(settings: FuelSettingsUpdate, request: Request, current_user: dict = Depends(get_current_user)):
     #? บันทึก/อัปเดตการตั้งค่าน้ำมัน พร้อม append ราคาใหม่ลง price_history
     user_id = current_user.get("user_id")
     if not user_id:
@@ -80,6 +81,9 @@ def save_fuel_settings(settings: FuelSettingsUpdate, current_user: dict = Depend
         'toll_parking': settings.toll_parking,
         'price_history': price_history,
     })
+    log_activity(db, action=LogAction.FUEL_SETTINGS_UPDATE, request=request, user=current_user,
+                 details={"distance_km": settings.distance_km, "fuel_price": settings.fuel_price,
+                          "effective_from": effective_from})
     return {"status": "success"}
 
 
@@ -216,7 +220,7 @@ def get_fuel_savings_weekly(week: str, current_user: dict = Depends(get_current_
 # ── Endpoint สำหรับ Admin (level 1+) ─────────────────────────────────────────
 
 @router.get("/savings/all")
-def get_all_fuel_savings(month: str, authorization: str = Header(None)):
+def get_all_fuel_savings(month: str, request: Request, authorization: str = Header(None)):
     #? ดึงข้อมูลประหยัดค่าน้ำมันของทุกคน (สำหรับ admin level 1+)
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="ไม่ได้รับอนุญาต")
@@ -289,4 +293,8 @@ def get_all_fuel_savings(month: str, authorization: str = Header(None)):
 
     #? เรียงตาม department แล้ว name
     results.sort(key=lambda x: (x["department"], x["name"]))
+
+    log_activity(get_db(), action=LogAction.FUEL_VIEW_SAVINGS, request=request,
+                 user=payload, details={"month": month, "user_count": len(results)})
+
     return {"month": month, "users": results}

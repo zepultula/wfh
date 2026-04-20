@@ -359,8 +359,7 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
               <button class="${descClass}" onclick="openDescModal(this)"><span class="icon">📝</span> คำอธิบาย</button>
               <button class="${attachClass} btn-attach" onclick="openAttachModal(this)">📎 ไฟล์/ลิงก์</button>
               <span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>
-            </div>
-            <button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+            </div>`;
 
           if(task.files && task.files.length > 0) r.setAttribute('data-files', JSON.stringify(task.files));
           if(task.links && task.links.length > 0) r.setAttribute('data-links', JSON.stringify(task.links));
@@ -433,7 +432,7 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
       const titleAttr = (readOnly || isFromPlan)
         ? `readonly ${isFromPlan ? 'style="background:#F0F8FF;cursor:default"' : ''}`
         : '';
-      const delBtn = readOnly ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
+      const delBtn = (readOnly || isFromPlan) ? '' : `<button class="btn-del-task" onclick="deleteTask(this)" title="ลบงาน"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>`;
       const planBadge = isFromPlan
         ? '<span style="font-size:11px;color:#1B5E20;background:#E8F5E9;padding:2px 7px;border-radius:8px;font-weight:500">📋 จากแผนงาน</span>'
         : '';
@@ -697,12 +696,25 @@ function deleteTask(btn) {
   //! ตรวจสอบ: ห้ามลบข้อมูลในโหมดย้อนหลัง
   if (isHistoryMode) return;
   const row = btn.closest('.task-row');
-  stopTaskTimer(row, false); //? หยุด interval ก่อน remove เพื่อป้องกัน memory leak
-  row.remove();
-  reindexTasks(); //? ทำการ Re-index เลขข้อหลังจากลบออก
+  const title = row.querySelector('input[type="text"]')?.value?.trim() || 'งานนี้';
+  Swal.fire({
+    title: 'ลบงาน?',
+    text: `"${title}"`,
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'ลบ',
+    cancelButtonText: 'ยกเลิก',
+  }).then(result => {
+    if (!result.isConfirmed) return;
+    stopTaskTimer(row, false); //? หยุด interval ก่อน remove เพื่อป้องกัน memory leak
+    row.remove();
+    reindexTasks(); //? ทำการ Re-index เลขข้อหลังจากลบออก
 
-  //todo เพิ่มการ Auto-save ทันทีหลังลบ เพื่อให้ข้อมูลใน DB ตรงกับหน้าจอ
-  if (currentReportId && currentReportExists) autoSaveTasks();
+    //todo เพิ่มการ Auto-save ทันทีหลังลบ เพื่อให้ข้อมูลใน DB ตรงกับหน้าจอ
+    if (currentReportId && currentReportExists) autoSaveTasks();
+  });
 }
 
 /* ── ป๊อปอัปคำอธิบายงาน (Description modal) ── */

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Header, HTTPException, Depends
+from fastapi import APIRouter, Header, HTTPException, Depends, Request
 from database import get_db
 from auth import get_current_user
+from activity_logger import log_activity, LogAction
 from models import AnnouncementCreate, AnnouncementUpdate
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -50,6 +51,7 @@ def list_announcements(
 @router.post("/", status_code=201)
 def create_announcement(
     data: AnnouncementCreate,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     _require_super_admin(current_user)
@@ -64,6 +66,9 @@ def create_announcement(
         "created_by": current_user.get("sub", ""),
     }
     doc_ref.set(payload)
+    log_activity(db, action=LogAction.ANN_CREATE, request=request, user=current_user,
+                 resource_id=doc_ref.id, resource_type="announcement",
+                 details={"title": data.title, "target": data.target})
     return {"id": doc_ref.id, **payload}
 
 
@@ -72,6 +77,7 @@ def create_announcement(
 def update_announcement(
     ann_id: str,
     data: AnnouncementUpdate,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     _require_super_admin(current_user)
@@ -85,6 +91,17 @@ def update_announcement(
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update")
     doc_ref.update(updates)
+
+    #? แยก log: toggle is_active vs แก้ไขเนื้อหา
+    if list(updates.keys()) == ["is_active"]:
+        log_activity(db, action=LogAction.ANN_TOGGLE, request=request, user=current_user,
+                     resource_id=ann_id, resource_type="announcement",
+                     details={"is_active": updates["is_active"]})
+    else:
+        log_activity(db, action=LogAction.ANN_UPDATE, request=request, user=current_user,
+                     resource_id=ann_id, resource_type="announcement",
+                     details={"updated_fields": list(updates.keys())})
+
     return {"id": ann_id, **doc.to_dict(), **updates}
 
 
@@ -92,12 +109,18 @@ def update_announcement(
 @router.delete("/{ann_id}")
 def delete_announcement(
     ann_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     _require_super_admin(current_user)
     db = get_db()
     doc_ref = db.collection("announcements").document(ann_id)
-    if not doc_ref.get().exists:
+    existing = doc_ref.get()
+    if not existing.exists:
         raise HTTPException(status_code=404, detail="Announcement not found")
+    title = existing.to_dict().get("title", "")
     doc_ref.delete()
+    log_activity(db, action=LogAction.ANN_DELETE, request=request, user=current_user,
+                 resource_id=ann_id, resource_type="announcement",
+                 details={"title": title})
     return {"status": "deleted", "id": ann_id}

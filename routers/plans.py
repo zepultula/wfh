@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import StreamingResponse
 from database import get_db
 from auth import get_current_user
+from activity_logger import log_activity, LogAction
 from models import WeeklyPlanCreate, TaskApprovalUpdate
 from zoneinfo import ZoneInfo
 from datetime import datetime, date as date_mod, timedelta
@@ -107,6 +108,7 @@ def get_my_plan(
 @router.post("/", status_code=201)
 def save_plan(
     data: WeeklyPlanCreate,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """สร้างหรือแทนที่แผนงานเชิงพัฒนาสำหรับสัปดาห์ที่ระบุ"""
@@ -166,6 +168,11 @@ def save_plan(
         "tasks":      clean_tasks,
     }
     doc_ref.set(payload)
+
+    log_activity(get_db(), action=LogAction.PLAN_SAVE, request=request, user=current_user,
+                 resource_id=plan_id, resource_type="plan",
+                 details={"week_start": week_start, "task_count": len(clean_tasks)})
+
     return {"id": plan_id, **payload}
 
 
@@ -221,6 +228,7 @@ def get_plan_tasks_for_date(
 @router.get("/subordinates")
 def get_subordinates_plans(
     week: str | None = None,
+    request: Request = None,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -284,6 +292,9 @@ def get_subordinates_plans(
         for task in plan_dict.get("tasks", []):
             task["in_report"] = (uid, task.get("id")) in in_report_keys
 
+    log_activity(get_db(), action=LogAction.PLAN_VIEW, request=request, user=current_user,
+                 details={"week_start": week_start, "plan_count": len(result)})
+
     return result
 
 
@@ -294,6 +305,7 @@ def get_subordinates_plans(
 def approve_task(
     plan_id: str,
     data: TaskApprovalUpdate,
+    request: Request,
     current_user: dict = Depends(get_current_user)
 ):
     """
@@ -338,6 +350,13 @@ def approve_task(
     target_task["approved_at"] = _now_bkk() if data.approved else ""
 
     doc_ref.update({"tasks": tasks, "updated_at": _now_bkk()})
+
+    action = LogAction.PLAN_APPROVE if data.approved else LogAction.PLAN_REJECT
+    log_activity(get_db(), action=action, request=request, user=current_user,
+                 resource_id=plan_id, resource_type="plan",
+                 details={"task_id": data.task_id, "task_title": target_task.get("title", ""),
+                          "target_user": plan_data.get("user_id", "")})
+
     return {"status": "ok", "plan_id": plan_id, "task_id": data.task_id, "approved": data.approved}
 
 
@@ -514,6 +533,7 @@ def _build_plans_wb(rows: list[dict], title: str, has_week_col: bool):
 @router.get("/export/weekly")
 def export_plans_weekly(
     week: str | None = None,
+    request: Request = None,
     current_user: dict = Depends(get_current_user)
 ):
     """Export แผนงานเชิงพัฒนาของลูกน้องทั้งหมดในสัปดาห์ที่ระบุ เป็น Excel (.xlsx)"""
@@ -564,6 +584,10 @@ def export_plans_weekly(
              f" — {e.day} {_TH_MON_SHORT[e.month]} {e.year + 543}")
 
     output = _build_plans_wb(rows, title, has_week_col=False)
+
+    log_activity(get_db(), action=LogAction.PLAN_EXPORT, request=request, user=current_user,
+                 details={"week_start": week_start, "type": "weekly"})
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -577,6 +601,7 @@ def export_plans_weekly(
 @router.get("/export/monthly")
 def export_plans_monthly(
     month: str,
+    request: Request = None,
     current_user: dict = Depends(get_current_user)
 ):
     """Export แผนงานเชิงพัฒนาของลูกน้องทั้งหมดในเดือนที่ระบุ (YYYY-MM) เป็น Excel (.xlsx)"""
@@ -644,6 +669,10 @@ def export_plans_monthly(
     title = f"แผนงานเชิงพัฒนารายเดือน  {_TH_MON_LONG[mon_val]} {year_val + 543}"
 
     output = _build_plans_wb(rows, title, has_week_col=True)
+
+    log_activity(get_db(), action=LogAction.PLAN_EXPORT, request=request, user=current_user,
+                 details={"month": month, "type": "monthly"})
+
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

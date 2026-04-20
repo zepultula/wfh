@@ -8,3 +8,4 @@ python-dotenv
 python-multipart
 bcrypt
 ldap3
+user-agents
