@@ -42,22 +42,9 @@ async function initUser() {
     if (cmtName) cmtName.textContent = `${currentUser.name} · คอมเมนต์ถึงพนักงาน`;
 
     //? จัดการการมองเห็นเมนูจัดการ (Management) ตามสิทธิ์
-    //? Level 9 หรือ 'admin' จะเห็นเมนูจัดการผู้ใช้และสายบังคับบัญชา
-    if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
-      const btn = document.getElementById('btn-users-mgmt');
-      if (btn) btn.style.display = '';
-      const btnEv = document.getElementById('btn-evals-mgmt');
-      if (btnEv) btnEv.style.display = '';
-    }
     //? เฉพาะกลุ่มหัวหน้างาน/ผู้บริหาร (Level 1 ขึ้นไป) จะเห็นเมนูสถิติ
     const btnSt = document.getElementById('btn-stats-mgmt');
     if (btnSt) btnSt.style.display = '';
-
-    //? Super Admin เท่านั้นที่เห็นเมนูจัดการประกาศ
-    const btnAnn = document.getElementById('btn-ann-mgmt');
-    if (btnAnn && (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin'))) {
-      btnAnn.style.display = '';
-    }
 
     //? Admin ทุก level (1+) สามารถรีวิวแผนงานของลูกน้องได้
     const btnPlans = document.getElementById('btn-plans-mgmt');
@@ -67,10 +54,10 @@ async function initUser() {
     const btnFuel = document.getElementById('btn-fuel-mgmt');
     if (btnFuel) btnFuel.style.display = '';
 
-    //? Super Admin เท่านั้นที่เห็นเมนูบันทึกกิจกรรม
-    const btnLogs = document.getElementById('btn-logs-mgmt');
-    if (btnLogs && (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin'))) {
-      btnLogs.style.display = '';
+    //? Level 9 หรือ 'admin' จะเห็นกลุ่มเมนู Super Admin
+    if (currentUser.level === 9 || currentUser.role.toLowerCase().includes('admin')) {
+      const grp = document.getElementById('super-admin-group');
+      if (grp) grp.style.display = 'flex';
     }
 
     //? ตรวจสอบและแสดง Modal ประกาศ (ครั้งเดียวต่อ Login session)
@@ -103,6 +90,25 @@ window.toggleUserMenu = function(e) {
     }
 };
 
+//? เปิด/ปิด เมนู Dropdown Super Admin
+window.toggleSuperMenu = function(e) {
+    if (e) e.stopPropagation();
+    const dropdown = document.getElementById('super-admin-dropdown');
+    const btn = document.getElementById('btn-super-trigger');
+    if (dropdown) {
+        const isOpen = dropdown.classList.contains('on');
+        dropdown.classList.toggle('on', !isOpen);
+        if (btn) btn.classList.toggle('active', !isOpen);
+    }
+};
+
+window.closeSuperMenu = function() {
+    const dropdown = document.getElementById('super-admin-dropdown');
+    const btn = document.getElementById('btn-super-trigger');
+    if (dropdown) dropdown.classList.remove('on');
+    if (btn) btn.classList.remove('active');
+};
+
 //? ปิด Dropdown เมื่อคลิกที่อื่นบนหน้าจอ
 document.addEventListener('click', () => {
     const dropdown = document.getElementById('um-dropdown');
@@ -111,6 +117,7 @@ document.addEventListener('click', () => {
         dropdown.classList.remove('on');
         if (btn) btn.classList.remove('active');
     }
+    closeSuperMenu();
 });
 
 //? แสดง Modal ข้อมูลส่วนตัว และเติมข้อมูลปัจจุบัน
@@ -937,11 +944,15 @@ const levelRoleMap = { '0':'employee','1':'supervisor','2':'director','3':'execu
 const levelLabelMap = { 0:'พนักงาน',1:'หัวหน้างาน',2:'ผู้อำนวยการ',3:'ผู้บริหาร',9:'ผู้ดูแลระบบ' };
 const avatarCycleColors = ['av-teal','av-purple','av-coral','av-amber','av-blue'];
 
+const SUPER_ADMIN_BTNS = new Set(['btn-users-mgmt','btn-evals-mgmt','btn-ann-mgmt','btn-logs-mgmt']);
+
 function setNavActive(activeId) {
-  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt','btn-ann-mgmt','btn-plans-mgmt','btn-fuel-mgmt'].forEach(id => {
+  ['btn-users-mgmt','btn-evals-mgmt','btn-stats-mgmt','btn-ann-mgmt','btn-plans-mgmt','btn-fuel-mgmt','btn-logs-mgmt'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('active', id === activeId);
   });
+  const trigger = document.getElementById('btn-super-trigger');
+  if (trigger) trigger.classList.toggle('active', SUPER_ADMIN_BTNS.has(activeId));
 }
 
 function showUsersScreen() {
@@ -2440,7 +2451,7 @@ const _LOG_CATEGORY_COLORS = {
   USER_MGMT: '#b45309', EVALUATION: '#7c3aed', ANNOUNCEMENT: '#d97706',
   FUEL: '#dc2626', FILE: '#64748b',
 };
-const _LOG_PAGE_SIZE = 100;
+const _LOG_PAGE_SIZE = 50;
 let _logCurrentOffset = 0;
 let _logTotal = 0;
 
