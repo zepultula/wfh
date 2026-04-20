@@ -2,7 +2,7 @@
 
 **Base URL:** `http://127.0.0.1:8100`  
 **Interactive Docs (Swagger UI):** `http://127.0.0.1:8100/docs`  
-**Version:** 3.6.1
+**Version:** 3.6.2
 
 ---
 
@@ -18,8 +18,10 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 `header.js` ของ Frontend จะแนบ Token นี้ให้อัตโนมัติทุก Request ที่ขึ้นต้นด้วย `/api/`
 
 **Security Notes:**
-- รหัสผ่านในระบบถูกเข้ารหัสด้วย **BCrypt (rounds=12)** (v3.4.1+)
-- ระบบรองรับ Lazy Migration สำหรับรหัสผ่านเดิมที่ยังเป็นข้อความปกติ โดยจะถูกเข้ารหัสอัตโนมัติเมื่อมีการ Login สำเร็จ 
+- **(v3.6.2+) AD Authentication:** ระบบยืนยันตัวตนผ่าน Active Directory (`ldap3`) เป็นหลัก — รหัสผ่านเดียวกับ Windows/Email องค์กร
+- **Fallback:** หาก AD Server ไม่ตอบสนอง (timeout/network error) จะ fallback ตรวจสอบ bcrypt จาก Firestore โดยอัตโนมัติ
+- รหัสผ่านในระบบถูกเข้ารหัสด้วย **BCrypt (rounds=12)** (v3.4.1+) — ใช้ในเส้นทาง fallback เท่านั้น
+- ระบบรองรับ Lazy Migration สำหรับรหัสผ่านเดิมที่ยังเป็นข้อความปกติ โดยจะถูกเข้ารหัสอัตโนมัติเมื่อ fallback path ทำงานสำเร็จ
 
 **JWT Payload:**
 ```json
@@ -60,9 +62,17 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 
 ตรวจสอบ credentials และออก JWT Token
 
-**รองรับ 2 รูปแบบ:**
+**Auth Flow (v3.6.2+):**
+1. Normalize username — ตัด `@domain` ออกถ้ามี → สร้าง `full_email = username@rmutl.ac.th`
+2. ยืนยันตัวตนผ่าน **Active Directory** (`RMUTL\username`) — timeout 3 วินาที
+3. ถ้า AD พร้อมแต่รหัสผิด → `401` ทันที
+4. ดึง user document จาก **Firestore** — ถ้าไม่มี → `401`
+5. ถ้า AD ล่ม → **fallback** ตรวจ bcrypt จาก Firestore
+6. ออก JWT Token
+
+**รองรับ 2 รูปแบบ input:**
 - Email เต็ม: `zootopia@rmutl.ac.th`
-- Username ย่อ: `zootopia` (ระบบค้นหา email จาก Firestore ด้วย range query อัตโนมัติ)
+- Username ย่อ: `zootopia` (ระบบ normalize ให้เองอัตโนมัติ)
 
 **Request Body**
 ```json
@@ -95,7 +105,8 @@ Token ได้มาจาก `POST /api/login` และมีอายุ **8
 **Errors**
 | Code | Detail |
 |------|--------|
-| 401 | Invalid credentials |
+| 401 | ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (AD ปฏิเสธ หรือ fallback bcrypt ล้มเหลว) |
+| 401 | ไม่พบบัญชีผู้ใช้ในระบบ (AD ผ่าน แต่ไม่มี user ใน Firestore) |
 
 ---
 

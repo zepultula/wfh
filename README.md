@@ -4,7 +4,7 @@
 
 ---
 
-## 🚀 คุณสมบัติเด่น (Features) - v3.6.1
+## 🚀 คุณสมบัติเด่น (Features) - v3.6.2
 
 ### 1. การจัดการรายงานรายวัน (Core Reports & Time Tracking)
 - **Task Management:** เพิ่ม แก้ไข และลบรายการงานประจำวัน
@@ -26,9 +26,11 @@
   - งานที่ "อยู่ระหว่างดำเนินการ" (มีการบันทึกเวลาหรือผลงานแล้ว) จะล็อกการยกเลิกอนุมัติโดยระบบอัตโนมัติ
 
 ### 3. ระบบยืนยันตัวตนและจัดการ Profile (Auth & Profile)
-- **Secure Login:** ระบบ Login ด้วย Email/Password หรือ **Username ย่อ** พร้อม JWT Authentication (HS256)
-- **Password Hashing:** เข้ารหัสด้วย BCrypt (rounds=12) พร้อมระบบ Lazy Migration
-- **Self-Service Reset:** พนักงานสามารถเปลี่ยนรหัสผ่านเองได้ผ่านหน้าโปรไฟล์ พร้อมระบบตรวจสอบความถูกต้องแบบ Real-time
+- **AD Authentication (v3.6.2):** ยืนยันตัวตนผ่าน Active Directory ขององค์กร — ใช้รหัสผ่านเดียวกับ Windows/Email องค์กรได้เลย
+- **Fallback Mode:** หาก AD Server ไม่ตอบสนอง ระบบจะ fallback ตรวจสอบรหัสผ่านจากฐานข้อมูลอัตโนมัติ ไม่กระทบการใช้งาน
+- **Secure Login:** Login ด้วย **Username ย่อ** (ไม่ต้องพิมพ์ `@domain`) พร้อม JWT Authentication (HS256) อายุ 8 ชั่วโมง
+- **Password Hashing:** รหัสผ่านในระบบเข้ารหัสด้วย BCrypt (rounds=12) พร้อมระบบ Lazy Migration
+- **Self-Service Reset:** พนักงานสามารถเปลี่ยนรหัสผ่านในระบบเองได้ผ่านหน้าโปรไฟล์
 
 ### 4. แดชบอร์ดสรุปผลและสถิติ (Admin & Stats)
 - **Real-time Dashboard:** แสดงจำนวนคนส่ง, ยังไม่ส่ง และพนักงานที่มีอุปสรรค แยกตามหน่วยงาน
@@ -113,7 +115,7 @@ wfh/
 - **Backend:** FastAPI (Python 3.10+)
 - **Database:** Firebase Firestore (NoSQL)
 - **Frontend:** HTML5, Vanilla JavaScript, Vanilla CSS, SweetAlert2
-- **Auth:** JWT HS256 (`python-jose`) + `python-dotenv` สำหรับโหลด secret key จาก `.env`
+- **Auth:** JWT HS256 (`python-jose`) + AD Authentication (`ldap3`) + `python-dotenv` สำหรับโหลด secret key จาก `.env`
 
 ---
 
@@ -142,12 +144,17 @@ wfh/
 3. **ตั้งค่า Firebase:**
    นำไฟล์ Service Account JSON มาวางใน root directory และตรวจสอบชื่อไฟล์ใน `database.py`
 
-4. **ตั้งค่า Secret Key (Production):**
+4. **ตั้งค่า Environment Variables (Production):**
    สร้างไฟล์ `.env` ใน root directory:
    ```
    JWT_SECRET_KEY=<random_string_32+_chars>
+
+   # AD Authentication (ถ้าต้องการเปลี่ยนจากค่า default)
+   AD_SERVER_IP=10.60.60.1
+   AD_DOMAIN_PREFIX=RMUTL
+   AD_DOMAIN_SUFFIX=rmutl.ac.th
    ```
-   สร้าง key ด้วย: `python -c "import secrets; print(secrets.token_hex(32))"`
+   สร้าง JWT key ด้วย: `python -c "import secrets; print(secrets.token_hex(32))"`
 
 5. **รันเซิร์ฟเวอร์:**
    ```bash
@@ -156,13 +163,34 @@ wfh/
    หรือกำหนด Host/Port ผ่าน Environment Variables:
    ```bash
    set APP_HOST=0.0.0.0
-   set APP_PORT=8080
+   set APP_PORT=8100
    python main.py
    ```
-   > Default: `0.0.0.0:8000` (รับทุก IP ที่เข้ามา)
+   > Default: `0.0.0.0:8100` (รับทุก IP ที่เข้ามา)
+
+   **รันแบบ Background (nohup) สำหรับ Linux/Server:**
+   ```bash
+   nohup python main.py > app.log 2>&1 &
+   ```
+   ดู log แบบ Real-time:
+   ```bash
+   tail -f app.log
+   ```
+
+6. **หยุดและรันใหม่หลังอัปเดตโค้ด:**
+   ```bash
+   # หา PID ของ process ที่รันอยู่
+   ps aux | grep main.py
+
+   # หยุด process
+   kill <PID>
+
+   # หรือทำในคำสั่งเดียว (stop + start)
+   pkill -f "python main.py" && nohup python main.py > app.log 2>&1 &
+   ```
 
 6. **เข้าใช้งาน:**
-   เปิดเบราว์เซอร์ไปที่ [http://127.0.0.1:8000](http://127.0.0.1:8000)
+   เปิดเบราว์เซอร์ไปที่ [http://127.0.0.1:8100](http://127.0.0.1:8100)
 
 ---
 
@@ -211,6 +239,6 @@ wfh/
 ---
 
 ## 📝 ข้อมูลโครงการ
-- **เวอร์ชัน:** 3.6.1
+- **เวอร์ชัน:** 3.6.2
 - **ทีมผู้พัฒนา:** ส.อ.พงศ์พันธ์ศักดิ์ พึ่งชาติ
 - **หน่วยงาน:** มหาวิทยาลัยเทคโนโลยีราชมงคลล้านนา ตาก
