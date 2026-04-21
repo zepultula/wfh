@@ -12,3 +12,4 @@
 /wfh
 **/__pycache__/
 *.pyc
+/.gitignore
