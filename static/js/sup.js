@@ -477,9 +477,9 @@ function renderReportDetail(report) {
 
   const tasksHTML = report.tasks && report.tasks.length > 0
     ? report.tasks.map(t => {
-        const escapedDesc = (t.description || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const escapedDesc = JSON.stringify(t.description || '').replace(/"/g, '&quot;');
         const descBtn = t.description
-          ? `<button class="btn-view-desc" onclick="viewDesc('${escapedDesc}')">📝 ดูรายละเอียด</button>`
+          ? `<button class="btn-view-desc" onclick="viewDesc(${escapedDesc})">📝 ดูรายละเอียด</button>`
           : '';
 
         let attachHTML = '';
