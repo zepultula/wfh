@@ -148,6 +148,8 @@ body{font-family:var(--font-sans);font-size:15px;color:var(--color-text-primary)
 input[type=text],select,textarea{width:100%;padding:9px 12px;font-size:13px;font-family:var(--font-sans);background:var(--color-background-secondary);border:1px solid var(--color-border-secondary);border-radius:var(--border-radius-md);color:var(--color-text-primary);outline:none;transition:border-color 0.2s, box-shadow 0.2s;}
 input[type=text]:focus,select:focus,textarea:focus{border-color:#85B7EB;box-shadow:0 0 0 3px rgba(12, 68, 124, 0.08);background:var(--color-background-primary);}
 textarea{resize:none;min-height:60px}
+#task-desc-input{min-height:160px;resize:vertical}
+#desc-modal .modal-bx{max-width:900px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 
 /* ── work mode ── */

@@ -157,6 +157,7 @@
     </div>
 
     <button class="btn-submit" id="btn-submit">ส่งรายงาน/อับเดทรายงาน</button>
+    <button id="btn-export-excel" onclick="exportMyReport()" style="display:none;margin-top:8px;width:100%;padding:10px;border:1px solid #1D9E75;border-radius:var(--border-radius-lg);background:#1D9E75;color:#fff;font-size:14px;font-weight:500;cursor:pointer;">⬇ Export Excel สรุปรายงานวันนี้</button>
   </div>
 
   <!-- Weekly Plan View -->
@@ -355,7 +356,7 @@
     </div>
     <div class="modal-bd">
       <div class="fl" style="margin-bottom:8px">ระบุรายละเอียดเครื่องมือที่ใช้ หรือขั้นตอนโดยละเอียด</div>
-      <textarea id="task-desc-input" placeholder="พิมพ์รายละเอียดเพิ่มเติมที่นี่..."></textarea>
+      <textarea id="task-desc-input" rows="8" placeholder="พิมพ์รายละเอียดเพิ่มเติมที่นี่..."></textarea>
     </div>
     <div class="modal-ft">
       <button class="fb" id="modal-cancel-btn" onclick="closeDescModal()">ยกเลิก</button>

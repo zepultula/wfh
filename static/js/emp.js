@@ -297,10 +297,14 @@ async function loadReport(dateStr) {
     if (res.ok) {
       const report = await res.json();
       currentReportExists = true; //? ระบุว่ารายงานนี้มีอยู่แล้วในระบบ
+      const expBtn = document.getElementById('btn-export-excel');
+      if (expBtn) expBtn.style.display = '';
       //? ส่งทั้งข้อมูลรายงานและแผนงานไปให้ฟังก์ชัน Populate จัดการ
       populateEmployeeForm(report, isHistoryMode, plannedTasks);
     } else {
       currentReportExists = false; //? รายงานใหม่ (ยังไม่เคยส่ง)
+      const expBtn = document.getElementById('btn-export-excel');
+      if (expBtn) expBtn.style.display = 'none';
       populateEmployeeForm(null, isHistoryMode, plannedTasks);
     }
   } catch(e) {
@@ -1859,7 +1863,7 @@ async function loadFuelSavings() {
   }
 }
 
-//? คำนวณและแสดงผลประหยัดค่าน้ำมันรายอาทิตย์
+//? คำนวณและแสดงผลประหยัดค่าน้ำมันรายอาทิตย์ (Weekly)
 async function loadFuelSavingsWeekly() {
   if (!_fuelWeekMonday) return;
 
@@ -1898,5 +1902,34 @@ async function loadFuelSavingsWeekly() {
     Swal.fire({ icon: 'error', title: 'ไม่สามารถคำนวณได้', confirmButtonColor: '#1059A3' });
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'คำนวณ'; }
+  }
+}
+
+/* ── Export รายงานประจำวันเป็น Excel ── */
+async function exportMyReport() {
+  if (!currentReportId) return;
+  const btn = document.getElementById('btn-export-excel');
+  const origText = btn ? btn.innerHTML : '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="ld-spin" style="width:14px;height:14px;border-width:2px;display:inline-block;vertical-align:middle;margin-right:6px"></span>กำลังดาวน์โหลด...';
+    }
+    const res = await fetch(`/api/reports/${currentReportId}/export`);
+    if (!res.ok) throw new Error('export failed');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `daily_report_${currentReportId}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    if (btn) {
+      btn.innerHTML = '✓ ดาวน์โหลดแล้ว';
+      setTimeout(() => { btn.innerHTML = origText; btn.disabled = false; }, 2000);
+    }
+  } catch {
+    Swal.fire({ icon: 'error', title: 'ไม่สามารถดาวน์โหลดได้', confirmButtonColor: '#1059A3' });
+    if (btn) { btn.innerHTML = origText; btn.disabled = false; }
   }
 }
