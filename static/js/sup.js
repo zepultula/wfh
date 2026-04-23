@@ -1677,7 +1677,7 @@ async function loadStats(month) {
     '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
     
   //? รีเซ็ตตัวเลข KPI (Dash) เป็นเครื่องหมาย — ก่อนแสดงค่าใหม่
-  ['sk-users','sk-submitted','sk-compliance','sk-progress'].forEach(id => {
+  ['sk-users','sk-active','sk-compliance','sk-progress'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.textContent = '—';
   });
@@ -1702,7 +1702,6 @@ function renderStats(data, isFiltered = false) {
   //? --- ส่วนการคำนวณ KPI สรุปภาพรวม (Aggregation) ---
   const totalUsers = users.length;
   //? หาจำนวนความถี่ในการส่งงานรวมของทุกคน
-  const totalSubmitted = users.reduce((s, u) => s + u.days_submitted, 0);
   //? ค่าเฉลี่ย Compliance (วินัยในการส่งรายงาน)
   const avgCompliance = totalUsers > 0
     ? Math.round(users.reduce((s, u) => s + u.compliance, 0) / totalUsers * 10) / 10
@@ -1716,8 +1715,11 @@ function renderStats(data, isFiltered = false) {
 
   //? อัปเดตตัวเลขใส่ลงใน Card สรุป (สี่เหลี่ยมด้านบน)
   const setKpi = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  const inactiveUsers = totalUsers - activeUsers.length;
   setKpi('sk-users', totalUsers);
-  setKpi('sk-submitted', totalSubmitted);
+  setKpi('sk-active', activeUsers.length);
+  const inactiveEl = document.getElementById('sk-inactive');
+  if (inactiveEl) inactiveEl.textContent = `${inactiveUsers} ไม่เข้าใช้งาน`;
   setKpi('sk-compliance', `${avgCompliance}%`);
   setKpi('sk-progress', `${avgProgress}%`);
 
