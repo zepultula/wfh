@@ -243,6 +243,7 @@ function setupTaskStatusHandlers(row) {
         pauseTaskTimer(row); //? หยุดชั่วคราว เก็บ elapsed ไว้
       }
 
+      calcAndUpdateProgress(); //? อัปเดต progress อัตโนมัติเมื่อสถานะงานเปลี่ยน
       //todo ส่งข้อมูลบันทึกอัตโนมัติเมื่อมีการเปลี่ยนสถานะ เพื่อป้องกันข้อมูลสูญหาย
       if (currentReportId && currentReportExists) autoSaveTasks();
     });
@@ -471,6 +472,15 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
       r.querySelector('.' + statusClass).classList.add('on'); //? ใส่ Class "on" ให้กับสถานะที่ตรงกับ DB
       initTaskTimer(r, task); //? restore timer state จาก DB (resume/freeze/show paused)
     });
+
+    //? คำนวณ progress จาก tasks ที่โหลดมา แทนที่จะใช้ค่า progress จาก DB เพื่อความแม่นยำ
+    if (!readOnly) {
+      const auto = calcTaskProgress();
+      if (auto !== null) {
+        document.getElementById('e-prog').value = auto;
+        ep(auto);
+      }
+    }
   }
 }
 
@@ -478,10 +488,29 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
 function ep(v) {
   document.getElementById('e-pv').textContent = v + '%'; //? อัปเดตตัวเลข % บนหน้าจอ
   document.getElementById('e-pb').style.width = v + '%'; //? ปรับความกว้างของแถบ Progress
-  
+
   //? เลือกสีตามความก้าวหน้าเพื่อสื่อความหมาย (Visual Indicator)
   //! 80%+: เขียว (ดีมาก), 40-79%: ส้ม (กำลังดำเนินงาน), <40%: แดง (ยังไม่สำเร็จ)
   document.getElementById('e-pb').style.background = v >= 80 ? '#639922' : v >= 40 ? '#EF9F27' : '#E24B4A';
+}
+
+//? คำนวณ % ความสำเร็จจากจำนวนงานที่เสร็จสิ้น นับเฉพาะแถวที่มีชื่องาน (ตรงกับที่ autoSaveTasks ส่งไป backend)
+function calcTaskProgress() {
+  const rows = [...document.querySelectorAll('#e-tasks .task-row')]
+    .filter(row => row.querySelector('input[type="text"]')?.value.trim());
+  if (!rows.length) return null;
+  let done = 0;
+  rows.forEach(row => { if (row.querySelector('.sp-done.on')) done++; });
+  return Math.round((done * 100) / rows.length);
+}
+
+//? คำนวณแล้วอัปเดต slider + progress bar อัตโนมัติ (ใช้ทั้ง status change, add, delete)
+function calcAndUpdateProgress() {
+  const auto = calcTaskProgress();
+  if (auto !== null) {
+    document.getElementById('e-prog').value = auto;
+    ep(auto);
+  }
 }
 
 /* ── App init ── */
@@ -715,6 +744,7 @@ function deleteTask(btn) {
     stopTaskTimer(row, false); //? หยุด interval ก่อน remove เพื่อป้องกัน memory leak
     row.remove();
     reindexTasks(); //? ทำการ Re-index เลขข้อหลังจากลบออก
+    calcAndUpdateProgress(); //? งานลดลงทำให้สัดส่วน % เปลี่ยน — คำนวณใหม่ทันที
 
     //todo เพิ่มการ Auto-save ทันทีหลังลบ เพื่อให้ข้อมูลใน DB ตรงกับหน้าจอ
     if (currentReportId && currentReportExists) autoSaveTasks();
@@ -860,7 +890,8 @@ document.getElementById('e-add').addEventListener('click', () => {
   r.querySelector('.sp-prog').classList.add('on');
   
   reindexTasks(); //? รันใหม่เพื่อให้เลขข้อเรียงลำดับถูก
-  
+  calcAndUpdateProgress(); //? งานใหม่เป็น pend ทำให้ % ลด — คำนวณใหม่ทันที
+
   //todo เลื่อนโฟกัสไปที่ Input ที่สร้างใหม่เพื่อให้พนักงานพิมพ์ได้ทันที
   r.querySelector('input').focus();
 });

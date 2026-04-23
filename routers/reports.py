@@ -137,8 +137,10 @@ def update_tasks(report_id: str, tasks: List[TaskModel] = Body(...),
     if not doc.exists:
         raise HTTPException(status_code=404, detail="Report not found")
     tasks_data = [t.model_dump() for t in tasks]
-    #? ทำการอัปเดตเฉพาะฟิลด์ 'tasks' ในเอกสารรายงานเดิม
-    report_ref.update({'tasks': tasks_data})
+    #? คำนวณ progress จาก tasks อัตโนมัติ เพื่อให้ Excel export และหน้า admin ตรงกับสถานะจริง
+    done_count = sum(1 for t in tasks if t.status == 'done')
+    auto_progress = round((done_count * 100) / len(tasks)) if tasks else 0
+    report_ref.update({'tasks': tasks_data, 'progress': auto_progress})
 
     #? log เฉพาะ manual save — ไม่ log auto-save ทุก 30 วินาที
     if source == "manual":
