@@ -484,7 +484,13 @@ function renderReportDetail(report) {
 
         let attachHTML = '';
         if ((t.files && t.files.length) || (t.links && t.links.length)) {
-          let fList = (t.files || []).map(f => `<a href="${f.url}" target="_blank" style="display:inline-flex;align-items:center;background:#E6F1FB;color:#1059A3;padding:2px 8px;border-radius:4px;font-size:11px;text-decoration:none;border:1px solid #B5D4F4;margin-right:6px;margin-top:4px;">📄 ${f.name}</a>`).join('');
+          let fList = (t.files || []).map(f => {
+            const isImage = /\.(jpg|jpeg|png|webp)$/i.test(f.url);
+            if (isImage) {
+              return `<span onclick="openImageLightbox('${f.url}')" style="display:inline-flex;align-items:center;background:#E6F1FB;color:#1059A3;padding:2px 8px;border-radius:4px;font-size:11px;border:1px solid #B5D4F4;margin-right:6px;margin-top:4px;cursor:zoom-in;"><img src="${f.url}" style="height:20px;width:20px;object-fit:cover;border-radius:2px;margin-right:4px;" />${f.name}</span>`;
+            }
+            return `<a href="${f.url}" target="_blank" style="display:inline-flex;align-items:center;background:#E6F1FB;color:#1059A3;padding:2px 8px;border-radius:4px;font-size:11px;text-decoration:none;border:1px solid #B5D4F4;margin-right:6px;margin-top:4px;">📄 ${f.name}</a>`;
+          }).join('');
           let lList = (t.links || []).map(l => `<a href="${l.url}" target="_blank" style="display:inline-flex;align-items:center;background:#EEEDFE;color:#3C3489;padding:2px 8px;border-radius:4px;font-size:11px;text-decoration:none;border:1px solid #C4B8F5;margin-right:6px;margin-top:4px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">🔗 ${l.title || l.url}</a>`).join('');
           attachHTML = `<div style="margin-top:6px;padding-left:36px;display:flex;flex-wrap:wrap;">${fList}${lList}</div>`;
         }
@@ -2574,3 +2580,13 @@ function _renderLogPagination() {
 
   container.innerHTML = html;
 }
+
+/* ── Image Lightbox ── */
+window.openImageLightbox = function(url) {
+  document.getElementById('img-lightbox-src').src = url;
+  document.getElementById('img-lightbox').style.display = 'flex';
+};
+window.closeImageLightbox = function() {
+  document.getElementById('img-lightbox').style.display = 'none';
+  document.getElementById('img-lightbox-src').src = '';
+};

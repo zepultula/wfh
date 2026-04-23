@@ -473,14 +473,7 @@ function populateEmployeeForm(report, readOnly, plannedTasks = []) {
       initTaskTimer(r, task); //? restore timer state จาก DB (resume/freeze/show paused)
     });
 
-    //? คำนวณ progress จาก tasks ที่โหลดมา แทนที่จะใช้ค่า progress จาก DB เพื่อความแม่นยำ
-    if (!readOnly) {
-      const auto = calcTaskProgress();
-      if (auto !== null) {
-        document.getElementById('e-prog').value = auto;
-        ep(auto);
-      }
-    }
+    if (!readOnly) calcAndUpdateProgress();
   }
 }
 
@@ -499,8 +492,7 @@ function calcTaskProgress() {
   const rows = [...document.querySelectorAll('#e-tasks .task-row')]
     .filter(row => row.querySelector('input[type="text"]')?.value.trim());
   if (!rows.length) return null;
-  let done = 0;
-  rows.forEach(row => { if (row.querySelector('.sp-done.on')) done++; });
+  const done = rows.filter(row => row.querySelector('.sp-done.on')).length;
   return Math.round((done * 100) / rows.length);
 }
 
@@ -1450,6 +1442,7 @@ function getStatusSymbol(status) {
 let currentAttachRow = null;
 let tempFiles = [];
 let tempLinks = [];
+let newlyUploadedUrls = [];
 
 //? ฟังก์ชันเปิด Modal สำหรับแนบสื่อในแต่ละงาน
 window.openAttachModal = function(btn) {
@@ -1458,6 +1451,7 @@ window.openAttachModal = function(btn) {
   // นำข้อมูลออกจาก Row (ถ้ามี) มาพักไว้ในตัวแปรชั่วคราว
   tempFiles = [];
   tempLinks = [];
+  newlyUploadedUrls = [];
   try {
     if(currentAttachRow.hasAttribute('data-files')) tempFiles = JSON.parse(currentAttachRow.getAttribute('data-files'));
     if(currentAttachRow.hasAttribute('data-links')) tempLinks = JSON.parse(currentAttachRow.getAttribute('data-links'));
@@ -1480,7 +1474,16 @@ window.openAttachModal = function(btn) {
   document.getElementById('attach-modal').classList.add('on');
 };
 
-window.closeAttachModal = function() {
+window.closeAttachModal = async function(saved = false) {
+  if (!saved && newlyUploadedUrls.length > 0) {
+    const toDelete = newlyUploadedUrls.filter(url => tempFiles.some(f => f.url === url));
+    for (const url of toDelete) {
+      const filename = url.split('/').pop();
+      try { await fetch(`/api/upload/${filename}`, { method: 'DELETE' }); }
+      catch(e) { console.warn('Orphan cleanup failed:', filename, e); }
+    }
+  }
+  newlyUploadedUrls = [];
   document.getElementById('attach-modal').classList.remove('on');
   currentAttachRow = null;
 };
@@ -1498,9 +1501,16 @@ window.renderAttachFiles = function() {
   tempFiles.forEach((f, idx) => {
     const isHistory = typeof isHistoryMode !== 'undefined' ? isHistoryMode : false;
     const hideTrash = isHistory ? 'display:none;' : '';
+    const isImage = /\.(jpg|jpeg|png|webp)$/i.test(f.url);
+    const preview = isImage
+      ? `<img src="${f.url}" onclick="openImageLightbox('${f.url}')" style="height:32px;width:32px;object-fit:cover;border-radius:3px;margin-right:6px;vertical-align:middle;cursor:zoom-in;" />`
+      : '📄 ';
+    const nameEl = isImage
+      ? `<span onclick="openImageLightbox('${f.url}')" style="cursor:zoom-in;">${f.name}</span>`
+      : `<a href="${f.url}" target="_blank" style="color:var(--color-text-primary);text-decoration:none;">${f.name}</a>`;
     list.innerHTML += `
       <div style="display:flex;align-items:center;justify-content:space-between;background:var(--color-bg-primary);padding:6px 10px;border-radius:4px;border:1px solid var(--color-border-tertiary);font-size:12px;margin-bottom:4px;">
-        <a href="${f.url}" target="_blank" style="color:var(--color-text-primary);text-decoration:none;">📄 ${f.name}</a>
+        <div style="display:flex;align-items:center;">${preview}${nameEl}</div>
         <button onclick="deleteAttachFile(${idx})" style="border:none;background:none;color:#E24B4A;cursor:pointer;${hideTrash}">🗑️</button>
       </div>
     `;
@@ -1618,6 +1628,7 @@ window.uploadPdfFile = async function() {
     if(res.ok) {
       const data = await res.json();
       tempFiles.push({name: data.name, url: data.url});
+      newlyUploadedUrls.push(data.url);
       renderAttachFiles();
       input.value = ""; // เคลียร์ฟอร์ม
     } else {
@@ -1672,14 +1683,24 @@ window.saveAttachModal = function() {
       else btnAttach.classList.remove('has-data');
     }
   }
-  closeAttachModal();
-  
+  closeAttachModal(true);
+
   // เซฟเข้า DB เผื่อรีเฟรชหน้าแล้วหาย
   if (typeof currentReportId !== 'undefined' && typeof currentReportExists !== 'undefined') {
     if (currentReportId && currentReportExists) autoSaveTasks();
   }
 };
 
+
+/* ── Image Lightbox ── */
+window.openImageLightbox = function(url) {
+  document.getElementById('img-lightbox-src').src = url;
+  document.getElementById('img-lightbox').style.display = 'flex';
+};
+window.closeImageLightbox = function() {
+  document.getElementById('img-lightbox').style.display = 'none';
+  document.getElementById('img-lightbox-src').src = '';
+};
 
 /* ══════════════════════════════════════════════════════
    ระบบคำนวณประหยัดค่าน้ำมัน (Fuel Savings)

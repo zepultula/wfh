@@ -616,5 +616,13 @@
 <script src="/static/js/announcements.js?v=1.0.0"></script>
 <script src="/static/js/sup.js?v=1.3.0"></script>
 <script src="/static/js/footer.js?v=1.3.0"></script>
+
+<!-- Image Lightbox -->
+<div class="modal-ov" id="img-lightbox" onclick="closeImageLightbox()" style="display:none;align-items:center;justify-content:center;cursor:zoom-out;">
+  <div style="position:relative;max-width:90vw;max-height:90vh;" onclick="event.stopPropagation()">
+    <img id="img-lightbox-src" src="" style="max-width:90vw;max-height:85vh;border-radius:8px;display:block;object-fit:contain;" />
+    <button onclick="closeImageLightbox()" style="position:absolute;top:-14px;right:-14px;background:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25);line-height:1;">&times;</button>
+  </div>
+</div>
 </body>
 </html>

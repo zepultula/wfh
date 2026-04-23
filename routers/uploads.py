@@ -12,6 +12,19 @@ router = APIRouter()
 # กำหนดขนาดไฟล์สูงสุดที่อัปโหลดได้ (10MB)
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
+ALLOWED_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.webp'}
+
+def _validate_magic_bytes(ext: str, data: bytes) -> bool:
+    if ext in ('.jpg', '.jpeg'):
+        return data[:3] == b'\xFF\xD8\xFF'
+    if ext == '.png':
+        return data[:8] == b'\x89\x50\x4E\x47\x0D\x0A\x1A\x0A'
+    if ext == '.webp':
+        return data[:4] == b'RIFF' and data[8:12] == b'WEBP'
+    if ext == '.pdf':
+        return data[:4] == b'\x25\x50\x44\x46'
+    return False
+
 # โฟลเดอร์สำหรับเก็บไฟล์ที่อัปโหลด
 UPLOAD_DIR = "uploads"
 if not os.path.exists(UPLOAD_DIR):
@@ -36,13 +49,18 @@ async def upload_file(file: UploadFile = File(...), request: Request = None, aut
     user = _require_auth(authorization)
 
     # 1. ตรวจสอบนามสกุลไฟล์
-    if not file.filename.lower().endswith('.pdf'):
-        raise HTTPException(status_code=400, detail="อนุญาตให้อัปโหลดเฉพาะไฟล์ PDF เท่านั้น")
+    ext = os.path.splitext(file.filename.lower())[1]
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="อนุญาตเฉพาะ PDF, JPG, PNG, WEBP เท่านั้น")
 
     # 2. ตรวจสอบขนาดไฟล์
     contents = await file.read()
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail="ขนาดไฟล์เกิน 10MB")
+
+    # 3. ตรวจสอบ Magic Bytes (ป้องกันการ rename ไฟล์อันตราย)
+    if not _validate_magic_bytes(ext, contents):
+        raise HTTPException(status_code=400, detail="ไฟล์ไม่ตรงกับนามสกุล")
 
     # เตรียมไฟล์สำหรับบันทึก
     # นำ uuid มาต่อหน้าชื่อไฟล์เพื่อป้องกันปัญหาไฟล์ชื่อซ้ำกัน
