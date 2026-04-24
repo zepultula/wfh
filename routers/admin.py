@@ -358,10 +358,16 @@ def _compute_monthly_stats(db, month: str, allowed_user_ids=None) -> dict:
         for pid in users_map
     }
 
-    for doc in db.collection("reports").stream():
+    #? กรองเฉพาะ reports ของเดือนที่ต้องการที่ Firestore — ไม่ดึง reports ทั้งหมดตลอดกาล
+    next_mon = mon + 1 if mon < 12 else 1
+    next_yr  = year if mon < 12 else year + 1
+    reports_query = (
+        db.collection("reports")
+          .where("timestamp", ">=", f"{month}-01")
+          .where("timestamp", "<",  f"{next_yr:04d}-{next_mon:02d}-01")
+    )
+    for doc in reports_query.stream():
         r = doc.to_dict()
-        if not r.get("timestamp", "").startswith(month):
-            continue
         uid = r.get("user_id")
         if uid not in accum:
             continue

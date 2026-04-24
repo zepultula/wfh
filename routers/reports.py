@@ -77,8 +77,14 @@ def get_reports(date: str = None, current_user: dict = Depends(get_current_user)
             allowed_target_ids.add(e.to_dict().get("target_id"))
 
     reports_ref = db.collection('reports')
-    #todo ควรเปลี่ยนไปใช้ .where() ในการ Query ตั้งแต่แรกแทนการดึงมาทั้งหมดเพื่อประหยัด Resource
-    #! การใช้ .stream() ดึงข้อมูลทั้งหมดมาวนลูปกรองใน Python จะทำงานช้าลงหากข้อมูลมีจำนวนมหาศาล
+
+    #? Fast path: employee ดูรายงานตัวเองวันใดวันหนึ่ง — ดึง doc เดียวตรงๆ ด้วย ID (1 read)
+    #! ต้องตรวจ is_super_admin ก่อน — admin ที่มี level=0 (แต่ role=super_admin) จะต้องผ่าน stream ปกติ
+    if not is_super_admin and level == 0 and date:
+        doc_id = f"{personal_id}_{date}"
+        doc = reports_ref.document(doc_id).get()
+        return [doc.to_dict()] if doc.exists else []
+
     docs = reports_ref.stream()
 
     reports = []

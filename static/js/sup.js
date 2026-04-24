@@ -910,6 +910,7 @@ function getTaskTypeBadgeClass(type) {
 let userEditMode = false;
 let userEditEmail = null;
 let allUsers = [];
+let _usersLoadedAt = 0;
 let ignoreMigrated = false;
 let collapsedDepts = null; // null = ยังไม่ initialize (จะ collapse ทั้งหมดครั้งแรก)
 let _deptKeyMap = [];    // index → dept name (user table)
@@ -989,20 +990,28 @@ function hideUsersScreen() {
 //? ฟังก์ชันโหลดข้อมูลผู้ใช้ทั้งหมดเพื่อนำมาบริหารจัดการ (จำกัดสิทธิ์เฉพาะระดับผู้ดูแลระบบ)
 async function loadUserManagement() {
   collapsedDepts = null; //? รีเซ็ตสถานะการย่อหน่วยงานทุกครั้งที่โหลดข้อมูลใหม่
+
+  //? ใช้ cache ที่โหลดไว้แล้วหากยังไม่เกิน 5 นาที — ลด Firestore reads
+  if (allUsers.length > 0 && (Date.now() - _usersLoadedAt) < 5 * 60 * 1000) {
+    renderUserTable(allUsers);
+    return;
+  }
+
   document.getElementById('u-rows').innerHTML =
     '<div class="ld-wrap"><div class="ld-spin"></div><span class="ld-dots">กำลังโหลด</span></div>';
-    
+
   //? การย้ายฟิลด์ (Migration): ตรวจสอบและอัปเดตสถานะ 'ignore' ในไฟล์ฐานข้อมูล (รันครั้งเดียวต่อ Session)
   if (!ignoreMigrated) {
     ignoreMigrated = true;
     fetch('/api/admin/migrate/ignore', { method:'POST' }).catch(() => {});
   }
-  
+
   try {
     const res = await fetch('/api/admin/users');
     if (!res.ok) throw new Error('Forbidden'); //? ป้องกันการเข้าถึงหากไม่มีสิทธิ์
     allUsers = await res.json();
-    
+    _usersLoadedAt = Date.now();
+
     //? นำข้อมูลรายชื่อพนักงานทั้งหมดไปเรนเดอร์ลงตารางจัดการ
     renderUserTable(allUsers);
   } catch(e) {
