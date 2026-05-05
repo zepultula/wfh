@@ -180,6 +180,12 @@ textarea{resize:none;min-height:60px}
 .task-timer{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:0.5px;color:#633806;background:#FAEEDA;padding:2px 8px;border-radius:20px;border:1px solid #F5CFA0;margin-left:4px}
 .task-timer.is-done{color:#27500A;background:#EAF3DE;border-color:#B5D98A}
 .task-timer.is-pend{color:#444441;background:#F1EFE8;border-color:#D4D2CA}
+.task-inp-wrap{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.task-inp-wrap input{flex:1;margin-bottom:0!important}
+.task-save-ind{width:16px;height:16px;flex-shrink:0;pointer-events:none;display:none;transition:opacity .4s}
+.task-save-ind.saving{display:block;border:2.5px solid #e2e8f0;border-top-color:#1D9E75;border-radius:50%;animation:spin .75s linear infinite}
+.task-save-ind.saved{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#1D9E75;background:#EAF3DE;border-radius:50%;border:1.5px solid #B5D98A}
+.task-save-ind.fade{opacity:0}
 .btn-add{width:100%;padding:7px;font-size:12px;background:#f0f5ff;border:1px dashed #6fa3e0;border-radius:var(--border-radius-md);color:#1059A3;cursor:pointer;margin-top:2px;font-family:var(--font-sans);font-weight:500;transition:background .15s,border-color .15s}
 .btn-add:hover{background:#e0ecff;border-color:#1059A3}
 .btn-del-task{background:none;border:none;color:#e74c3c;font-size:18px;cursor:pointer;padding:4px;margin-top:2px;opacity:0.45;transition:opacity .2s,transform .15s;line-height:1;margin-left:auto;border-radius:6px;}
